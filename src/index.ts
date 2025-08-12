@@ -2,6 +2,7 @@ import { createApp } from './app';
 import config from './config';
 import logger from './utils/logger';
 import { redisClient } from './services/redis/client';
+import { kaiaProvider } from './services/blockchain/provider';
 
 async function startServer(): Promise<void> {
   try {
@@ -9,6 +10,11 @@ async function startServer(): Promise<void> {
     logger.info('Connecting to Redis...');
     await redisClient.connect();
     logger.info('✅ Connected to Redis successfully');
+
+    // Connect to Kaia blockchain
+    logger.info('Connecting to Kaia blockchain...');
+    await kaiaProvider.connect();
+    logger.info('✅ Connected to Kaia blockchain successfully');
 
     // Create Express app
     const app = createApp();
@@ -37,6 +43,10 @@ async function startServer(): Promise<void> {
       });
 
       try {
+        // Disconnect from Kaia
+        await kaiaProvider.disconnect();
+        logger.info('✅ Kaia connection closed');
+        
         // Disconnect from Redis
         await redisClient.disconnect();
         logger.info('✅ Redis connection closed');
