@@ -1,0 +1,23 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+
+# Kaia Network Configuration
+[rpc_endpoints]
+kaia_testnet = "https://public-en-kairos.node.kaia.io"
+kaia_mainnet = "https://public-en.node.kaia.io"
+
+[etherscan]
+kaia_testnet = { key = "${ETHERSCAN_API_KEY}", url = "https://kairos.kaiascope.com/api" }
+
+# Gas settings for Kaia
+[profile.kaia]
+gas_limit = 30_000_000
+gas_price = 25_000_000_000  # 25 Gwei
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
