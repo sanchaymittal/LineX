@@ -23,6 +23,11 @@ interface Config {
     };
   };
   
+  // Blockchain Configuration (for easier access)
+  blockchain: {
+    mockUsdtAddress: string;
+  };
+  
   // DappPortal Configuration
   dappPortal: {
     apiKey: string;
@@ -62,6 +67,10 @@ const config: Config = {
     gasPayer: {
       privateKey: process.env.GAS_PAYER_PRIVATE_KEY || '',
     },
+  },
+  
+  blockchain: {
+    mockUsdtAddress: process.env.MOCK_USDT_CONTRACT_ADDRESS || '',
   },
   
   dappPortal: {

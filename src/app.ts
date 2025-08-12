@@ -7,7 +7,7 @@ import { globalRateLimit } from './api/middleware/rateLimit';
 import config, { validateConfig } from './config';
 import logger from './utils/logger';
 
-// Import routes (will create these next)
+// Import routes (will create these as needed)
 // import healthRoutes from './api/routes/health';
 // import quoteRoutes from './api/routes/quote';
 // import transferRoutes from './api/routes/transfer';
@@ -60,7 +60,7 @@ export function createApp(): express.Application {
     app.use(globalRateLimit.middleware());
   }
 
-  // API routes
+  // API routes (will be added as we implement them)
   // app.use('/health', healthRoutes);
   // app.use('/api/v1/quote', quoteRoutes);
   // app.use('/api/v1/transfer', transferRoutes);
