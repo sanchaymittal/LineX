@@ -132,7 +132,7 @@ class RedisClient {
   async expire(key: string, ttl: number): Promise<boolean> {
     try {
       const result = await this.client.expire(key, ttl);
-      return result;
+      return result === 1;
     } catch (error) {
       logger.error(`Failed to set expiration for key ${key}:`, error);
       throw error;

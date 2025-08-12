@@ -82,7 +82,7 @@ const logger = winston.createLogger({
 });
 
 // Add helper methods for structured logging
-logger.logWithCorrelation = function(level: string, message: string, correlationId?: string, meta?: any) {
+(logger as any).logWithCorrelation = function(level: string, message: string, correlationId?: string, meta?: any) {
   this.log(level, message, {
     ...meta,
     correlationId,
@@ -90,7 +90,7 @@ logger.logWithCorrelation = function(level: string, message: string, correlation
   });
 };
 
-logger.apiLog = function(method: string, url: string, statusCode: number, duration: number, correlationId?: string) {
+(logger as any).apiLog = function(method: string, url: string, statusCode: number, duration: number, correlationId?: string) {
   this.info('API Request', {
     method,
     url,
@@ -101,7 +101,7 @@ logger.apiLog = function(method: string, url: string, statusCode: number, durati
   });
 };
 
-logger.transferLog = function(action: string, transferId: string, status: string, details?: any) {
+(logger as any).transferLog = function(action: string, transferId: string, status: string, details?: any) {
   this.info(`Transfer ${action}`, {
     transferId,
     status,
@@ -110,7 +110,7 @@ logger.transferLog = function(action: string, transferId: string, status: string
   });
 };
 
-logger.webhookLog = function(provider: string, event: string, sessionId?: string, success?: boolean) {
+(logger as any).webhookLog = function(provider: string, event: string, sessionId?: string, success?: boolean) {
   this.info(`Webhook received from ${provider}`, {
     provider,
     event,
@@ -120,7 +120,7 @@ logger.webhookLog = function(provider: string, event: string, sessionId?: string
   });
 };
 
-logger.blockchainLog = function(action: string, txHash?: string, details?: any) {
+(logger as any).blockchainLog = function(action: string, txHash?: string, details?: any) {
   this.info(`Blockchain ${action}`, {
     txHash,
     ...details,

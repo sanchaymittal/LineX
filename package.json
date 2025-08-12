@@ -7,10 +7,14 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
+    "dev:redis": "./scripts/start-redis.sh && npm run dev",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
     "format:check": "prettier --check src/**/*.ts",
+    "clean": "rm -rf dist logs",
+    "prebuild": "npm run clean && mkdir -p logs",
+    "prestart": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -30,6 +34,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.2.1",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.39.1",
     "@typescript-eslint/parser": "^8.39.1",
     "eslint": "^9.33.0",
@@ -49,6 +54,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
     "redis": "^5.8.0",
+    "uuid": "^11.1.0",
     "winston": "^3.17.0"
   }
 }
