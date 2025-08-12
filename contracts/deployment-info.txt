@@ -1,0 +1,11 @@
+TestUSDT Contract Deployment
+===========================
+Network: Kaia Testnet (Kairos)
+Contract Address: 0x09D48C3b2DE92DDfD26ebac28324F1226da1f400
+Name: Test USDT
+Symbol: USDT
+Decimals: 6
+Initial Supply: 1,000,000 USDT
+Deployer: 0x992951efe0D3Bc3293E1180b4d9d8C528B627755
+Deployment Time: 1755041965
+Block Number: 193404412
