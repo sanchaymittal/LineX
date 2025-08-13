@@ -4,21 +4,39 @@
 
 LineX provides a comprehensive REST API for cross-border remittance using USDT stablecoins on the Kaia blockchain. This API enables instant, low-cost transfers between Korea and Southeast Asia with gasless transactions.
 
+## Deployment Status ✅
+
+- **Production API**: https://linex-backend-five.vercel.app
+- **Status**: Fully operational
+- **Network**: Kaia Testnet (Kairos) - Chain ID: 1001
+- **TestUSDT Contract**: `0x09D48C3b2DE92DDfD26ebac28324F1226da1f400`
+- **Performance**: Cold start ~2-3s, warm requests <500ms
+
 ## Documentation Access
 
 ### Interactive Swagger UI
 - **Local Development**: http://localhost:3000/api-docs
-- **Production**: https://api.linex.io/api-docs (TBD)
+- **Production**: https://linex-backend-five.vercel.app/api-docs
 
 ### OpenAPI Specification
-- **YAML Format**: http://localhost:3000/api-docs/openapi.yaml
-- **JSON Format**: http://localhost:3000/api-docs/openapi.json
+- **Local YAML**: http://localhost:3000/api-docs/openapi.yaml
+- **Local JSON**: http://localhost:3000/api-docs/openapi.json
+- **Production YAML**: https://linex-backend-five.vercel.app/api-docs/openapi.yaml
+- **Production JSON**: https://linex-backend-five.vercel.app/api-docs/openapi.json
 
 ## Quick Start
 
+### Base URLs
+- **Local Development**: `http://localhost:3000`
+- **Production**: `https://linex-backend-five.vercel.app`
+
 ### 1. Health Check
 ```bash
+# Local
 curl http://localhost:3000/health
+
+# Production
+curl https://linex-backend-five.vercel.app/health
 ```
 
 ### 2. Connect Wallet
