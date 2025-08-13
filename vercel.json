@@ -1,5 +1,5 @@
 {
-  "buildCommand": "tsc && mkdir -p api && cp dist/index.js api/index.js",
+  "buildCommand": "tsc && mkdir -p api && cp -r dist/* api/",
   "outputDirectory": "",
   "functions": {
     "api/index.js": {
