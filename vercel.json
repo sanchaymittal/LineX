@@ -1,33 +1,15 @@
 {
-  "version": 2,
+  "buildCommand": "tsc && mkdir -p api && cp dist/index.js api/index.js",
+  "outputDirectory": "",
   "functions": {
-    "dist/index.js": {
-      "runtime": "@vercel/node"
+    "api/index.js": {
+      "maxDuration": 10
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/dist/index.js"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "X-Requested-With, Content-Type, Authorization, X-Webhook-Signature"
-        }
-      ]
+      "destination": "/api/index.js"
     }
   ]
 }

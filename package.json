@@ -4,7 +4,8 @@
   "description": "LineX - Cross-border remittance platform built as a LINE Mini DApp",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "vercel-build": "pnpm run build && cp dist/index.js api/index.js",
+    "build": "tsc && mkdir -p api && cp dist/index.js api/index.js",
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
     "dev:redis": "./scripts/start-redis.sh && pnpm run dev",
