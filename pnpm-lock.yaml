@@ -20,6 +20,9 @@ importers:
       dotenv:
         specifier: ^17.2.1
         version: 17.2.1
+      ethers:
+        specifier: ^6.15.0
+        version: 6.15.0
       express:
         specifier: ^5.1.0
         version: 5.1.0
