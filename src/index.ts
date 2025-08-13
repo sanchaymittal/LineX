@@ -14,23 +14,39 @@ async function initializeServices(): Promise<void> {
   }
 
   try {
-    // Connect to Redis
+    // Connect to Redis with timeout
     if (!redisClient.getClient().isOpen) {
-      logger.info('🔗 Connecting to Redis...');
+      console.log('🔗 Connecting to Redis...');
+      const redisTimeout = setTimeout(() => {
+        throw new Error('Redis connection timeout');
+      }, 10000); // 10 second timeout
+      
       await redisClient.connect();
-      logger.info('✅ Connected to Redis successfully');
+      clearTimeout(redisTimeout);
+      console.log('✅ Connected to Redis successfully');
     }
 
-    // Connect to Kaia blockchain
-    logger.info('🔗 Connecting to Kaia blockchain...');
+    // Connect to Kaia blockchain with timeout
+    console.log('🔗 Connecting to Kaia blockchain...');
+    const kaiaTimeout = setTimeout(() => {
+      throw new Error('Kaia connection timeout');
+    }, 10000); // 10 second timeout
+    
     await kaiaProvider.connect();
-    logger.info('✅ Connected to Kaia blockchain successfully');
+    clearTimeout(kaiaTimeout);
+    console.log('✅ Connected to Kaia blockchain successfully');
 
     isInitialized = true;
-    logger.info('🚀 LineX services initialized');
+    console.log('🚀 LineX services initialized');
   } catch (error) {
-    logger.error('❌ Failed to initialize services:', error);
-    throw error;
+    console.error('❌ Failed to initialize services:', error);
+    // In serverless, we might want to continue with partial functionality
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ Continuing with partial service initialization in production');
+      isInitialized = true; // Allow app to start even with service failures
+    } else {
+      throw error;
+    }
   }
 }
 
@@ -119,17 +135,29 @@ if (require.main === module) {
 // For Vercel deployment - export the initialized Express app
 export default async (req: any, res: any) => {
   try {
+    // Add CORS headers immediately
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, X-Webhook-Signature');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+
     const expressApp = await createInitializedApp();
     // Properly handle the Express app in serverless environment
     expressApp(req, res);
   } catch (error) {
-    logger.error('💥 Vercel deployment error:', error);
+    console.error('💥 Vercel deployment error:', error);
     res.status(500).json({
       success: false,
       data: null,
       error: {
         code: 'DEPLOYMENT_ERROR',
         message: 'Internal server error during deployment',
+        details: error instanceof Error ? error.message : String(error)
       },
       metadata: {
         timestamp: new Date().toISOString(),
