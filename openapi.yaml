@@ -29,8 +29,8 @@ info:
 servers:
   - url: http://localhost:3000
     description: Development server
-  - url: https://api.linex.io
-    description: Production server (TBD)
+  - url: https://linex-backend.vercel.app
+    description: Production server (Vercel)
 
 tags:
   - name: Health

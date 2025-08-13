@@ -15,6 +15,21 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+.env.staging
+.env.*.local
+
+# Deployment credentials and sensitive files
+VERCEL_ENV_VARS.md
+.vercel/
+vercel.json.backup
+
+# Private keys and secrets (extra safety)
+*.key
+*.pem
+*.p12
+secrets/
+credentials/
 
 # Logs
 logs
@@ -53,6 +68,11 @@ Thumbs.db
 .serena/
 CLAUDE.md
 PLAN.md
+
+# Temporary deployment files
+deploy.sh
+temp-env-*
+.deployment-backup
 
 # Docker
 docker-compose.override.yml

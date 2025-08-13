@@ -4,23 +4,54 @@ import logger from './utils/logger';
 import { redisClient } from './services/redis/client';
 import { kaiaProvider } from './services/blockchain/provider';
 
-async function startServer(): Promise<void> {
+// Global state for Vercel deployment
+let isInitialized = false;
+let app: any = null;
+
+async function initializeServices(): Promise<void> {
+  if (isInitialized) {
+    return;
+  }
+
   try {
     // Connect to Redis
-    logger.info('Connecting to Redis...');
-    await redisClient.connect();
-    logger.info('✅ Connected to Redis successfully');
+    if (!redisClient.getClient().isOpen) {
+      logger.info('🔗 Connecting to Redis...');
+      await redisClient.connect();
+      logger.info('✅ Connected to Redis successfully');
+    }
 
     // Connect to Kaia blockchain
-    logger.info('Connecting to Kaia blockchain...');
+    logger.info('🔗 Connecting to Kaia blockchain...');
     await kaiaProvider.connect();
     logger.info('✅ Connected to Kaia blockchain successfully');
 
-    // Create Express app
-    const app = createApp();
+    isInitialized = true;
+    logger.info('🚀 LineX services initialized');
+  } catch (error) {
+    logger.error('❌ Failed to initialize services:', error);
+    throw error;
+  }
+}
 
-    // Start the server
-    const server = app.listen(config.port, () => {
+async function createInitializedApp() {
+  await initializeServices();
+  
+  if (!app) {
+    app = createApp();
+    logger.info('📡 Express app created');
+  }
+  
+  return app;
+}
+
+async function startServer(): Promise<void> {
+  try {
+    // Initialize services and create app
+    const expressApp = await createInitializedApp();
+
+    // Start the server (local development only)
+    const server = expressApp.listen(config.port, () => {
       logger.info(`🚀 LineX server started successfully`);
       logger.info(`📡 Server running on port ${config.port}`);
       logger.info(`🌍 Environment: ${config.nodeEnv}`);
@@ -80,9 +111,30 @@ async function startServer(): Promise<void> {
   }
 }
 
-// Start the server
+// For local development
 if (require.main === module) {
   startServer();
 }
+
+// For Vercel deployment - export the initialized Express app
+export default async (req: any, res: any) => {
+  try {
+    const expressApp = await createInitializedApp();
+    return expressApp(req, res);
+  } catch (error) {
+    logger.error('💥 Vercel deployment error:', error);
+    return res.status(500).json({
+      success: false,
+      data: null,
+      error: {
+        code: 'DEPLOYMENT_ERROR',
+        message: 'Internal server error during deployment',
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+      }
+    });
+  }
+};
 
 export { startServer };
