@@ -7,12 +7,13 @@ import { globalRateLimit } from './api/middleware/rateLimit';
 import config, { validateConfig } from './config';
 import logger from './utils/logger';
 
-// Import routes (will create these as needed)
-// import healthRoutes from './api/routes/health';
-// import quoteRoutes from './api/routes/quote';
-// import transferRoutes from './api/routes/transfer';
-// import webhookRoutes from './api/routes/webhook';
-// import faucetRoutes from './api/routes/faucet';
+// Import routes
+import healthRoutes from './api/routes/health';
+import quoteRoutes from './api/routes/quote';
+import transferRoutes from './api/routes/transfer';
+import walletRoutes from './api/routes/wallet';
+import webhookRoutes from './api/routes/webhooks';
+import docsRoutes from './api/routes/docs';
 
 export function createApp(): express.Application {
   // Validate configuration
@@ -60,38 +61,45 @@ export function createApp(): express.Application {
     app.use(globalRateLimit.middleware());
   }
 
-  // API routes (will be added as we implement them)
-  // app.use('/health', healthRoutes);
-  // app.use('/api/v1/quote', quoteRoutes);
-  // app.use('/api/v1/transfer', transferRoutes);
-  // app.use('/api/v1/webhook', webhookRoutes);
-  // app.use('/api/v1/faucet', faucetRoutes);
+  // API Documentation (before other routes for proper serving)
+  app.use('/api-docs', docsRoutes);
+  
+  // API routes
+  app.use('/health', healthRoutes);
+  app.use('/api/v1/quote', quoteRoutes);
+  app.use('/api/v1/transfer', transferRoutes);
+  app.use('/api/v1/wallet', walletRoutes);
+  app.use('/api/v1/webhook', webhookRoutes);
 
-  // Temporary basic route for testing
+  // API root endpoint
   app.get('/', (req, res) => {
     res.json({
       success: true,
       data: {
-        message: 'LineX API is running',
+        message: 'LineX Cross-Border Remittance API',
         version: '1.0.0',
         environment: config.nodeEnv,
         timestamp: new Date().toISOString(),
+        endpoints: {
+          health: '/health',
+          healthDetailed: '/health/detailed',
+          quote: '/api/v1/quote',
+          transfer: '/api/v1/transfer',
+          wallet: '/api/v1/wallet',
+          webhooks: '/api/v1/webhook',
+          documentation: '/api-docs',
+        },
+        documentation: {
+          swagger: '/api-docs',
+          openapi: '/api-docs/openapi.yaml',
+          github: 'https://github.com/lineX/backend',
+        },
       },
       error: null,
-    });
-  });
-
-  // Basic health check route
-  app.get('/health', (req, res) => {
-    res.json({
-      success: true,
-      data: {
-        status: 'healthy',
+      metadata: {
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        environment: config.nodeEnv,
+        requestId: (req as any).correlationId,
       },
-      error: null,
     });
   });
 
