@@ -7,6 +7,7 @@
 
 export { KaiaProviderManager, kaiaProvider } from './provider';
 export { SimpleContractService, simpleContractService } from './simpleContractService';
+export { FeeDelegationService, feeDelegationService } from './feeDelegationService';
 
 // Re-export contract constants for convenience
 export { CONTRACT_CONSTANTS } from '../../types/contracts';
