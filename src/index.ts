@@ -120,10 +120,11 @@ if (require.main === module) {
 export default async (req: any, res: any) => {
   try {
     const expressApp = await createInitializedApp();
-    return expressApp(req, res);
+    // Properly handle the Express app in serverless environment
+    expressApp(req, res);
   } catch (error) {
     logger.error('💥 Vercel deployment error:', error);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       data: null,
       error: {
