@@ -1,14 +1,14 @@
 {
   "version": 2,
   "functions": {
-    "dist/index.js": {
+    "api/*.js": {
       "maxDuration": 10
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/dist/index.js"
+      "destination": "/api"
     }
   ],
   "headers": [
