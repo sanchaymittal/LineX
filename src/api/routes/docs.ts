@@ -39,7 +39,7 @@ try {
   };
 }
 
-// Swagger UI options
+// Swagger UI options with CDN assets for serverless compatibility
 const swaggerUiOptions = {
   customCss: `
     .swagger-ui .topbar { 
@@ -59,6 +59,13 @@ const swaggerUiOptions = {
   `,
   customSiteTitle: 'LineX API Documentation',
   customfavIcon: '/favicon.ico',
+  // Use CDN for static assets instead of local files
+  swaggerUrl: 'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css',
+  customCssUrl: 'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css',
+  customJs: [
+    'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js',
+    'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js'
+  ],
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,
@@ -73,9 +80,8 @@ const swaggerUiOptions = {
   },
 };
 
-// Serve Swagger UI with serverless-compatible approach
+// Serve Swagger UI with CDN assets (no local static files)
 router.get('/', swaggerUi.setup(swaggerDocument, swaggerUiOptions));
-router.use('/', swaggerUi.serveFiles(swaggerDocument, swaggerUiOptions));
 
 // Serve raw OpenAPI spec
 router.get('/openapi.json', (_, res) => {
