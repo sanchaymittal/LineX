@@ -47,25 +47,36 @@ const transports: winston.transport[] = [
   }),
 ];
 
-// Add file transport in production
-if (config.nodeEnv === 'production') {
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      ),
-    }),
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      ),
-    })
-  );
+// Add file transport in production (but not in serverless environments)
+if (config.nodeEnv === 'production' && !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  try {
+    // Try to create logs directory if it doesn't exist
+    const fs = require('fs');
+    if (!fs.existsSync('logs')) {
+      fs.mkdirSync('logs', { recursive: true });
+    }
+    
+    transports.push(
+      new winston.transports.File({
+        filename: 'logs/error.log',
+        level: 'error',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.json()
+        ),
+      }),
+      new winston.transports.File({
+        filename: 'logs/combined.log',
+        format: winston.format.combine(
+          winston.format.timestamp(),
+          winston.format.json()
+        ),
+      })
+    );
+  } catch (error) {
+    // If file logging fails (e.g., in serverless), just use console
+    console.warn('File logging disabled in serverless environment');
+  }
 }
 
 // Create logger instance
