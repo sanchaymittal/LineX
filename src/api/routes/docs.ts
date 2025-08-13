@@ -73,16 +73,16 @@ const swaggerUiOptions = {
   },
 };
 
-// Serve Swagger UI at /api-docs
-router.use('/', swaggerUi.serve);
+// Serve Swagger UI with serverless-compatible approach
 router.get('/', swaggerUi.setup(swaggerDocument, swaggerUiOptions));
+router.use('/', swaggerUi.serveFiles(swaggerDocument, swaggerUiOptions));
 
 // Serve raw OpenAPI spec
-router.get('/openapi.json', (req, res) => {
+router.get('/openapi.json', (_, res) => {
   res.json(swaggerDocument);
 });
 
-router.get('/openapi.yaml', (req, res) => {
+router.get('/openapi.yaml', (_, res) => {
   res.type('text/yaml');
   const openApiPath = path.join(process.cwd(), 'openapi.yaml');
   res.sendFile(openApiPath);
