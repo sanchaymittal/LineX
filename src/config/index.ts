@@ -8,6 +8,16 @@ interface Config {
   nodeEnv: string;
   demoMode: boolean;
   
+  // App Configuration
+  app: {
+    ngrokUrl?: string;
+  };
+  
+  // Demo Configuration
+  demo: {
+    enabled: boolean;
+  };
+  
   // Redis Configuration
   redis: {
     url: string;
@@ -56,6 +66,14 @@ const config: Config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   demoMode: process.env.DEMO_MODE === 'true',
+  
+  app: {
+    ngrokUrl: process.env.NGROK_URL,
+  },
+  
+  demo: {
+    enabled: process.env.DEMO_MODE === 'true',
+  },
   
   redis: {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
