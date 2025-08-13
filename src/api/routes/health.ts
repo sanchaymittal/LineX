@@ -13,7 +13,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import config from '../../config';
 import logger from '../../utils/logger';
 
-const router = Router();
+const router: Router = Router();
 
 interface HealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy';

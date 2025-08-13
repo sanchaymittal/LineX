@@ -11,7 +11,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 import { createValidationError } from '../middleware/errorHandler';
 import logger from '../../utils/logger';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Connect a wallet to a LINE user

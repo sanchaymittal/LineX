@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import morgan from 'morgan';
 import { generateCorrelationId } from '../../utils';
 import logger from '../../utils/logger';
@@ -28,7 +28,7 @@ const morganFormat = config.nodeEnv === 'production'
   : ':method :url :status :response-time ms - :res[content-length] [:correlation-id]';
 
 // Morgan middleware with custom stream
-export const morganMiddleware = morgan(morganFormat, {
+export const morganMiddleware: RequestHandler = morgan(morganFormat, {
   stream: {
     write: (message: string) => {
       // Remove trailing newline and log through winston

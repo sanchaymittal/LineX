@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import logger from '../../utils/logger';
 
-const router = Router();
+const router: Router = Router();
 
 // Load OpenAPI specification
 let swaggerDocument: any;

@@ -10,7 +10,7 @@ import { handleDappPortalWebhook, webhookHealthCheck } from '../webhooks/dappPor
 import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../../utils/logger';
 
-const router = Router();
+const router: Router = Router();
 
 // Middleware to log all webhook requests
 router.use((req, res, next) => {
