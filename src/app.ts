@@ -30,7 +30,7 @@ export function createApp(): express.Application {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-        scriptSrc: ["'self'", "https://unpkg.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'"],
         fontSrc: ["'self'", "https://unpkg.com"],
