@@ -58,9 +58,7 @@ const swaggerUiOptions = {
     }
   `,
   customSiteTitle: 'LineX API Documentation',
-  customfavIcon: '/favicon.ico',
-  // Use CDN for static assets instead of local files
-  swaggerUrl: 'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css',
+  // Use CDN URLs for swagger-ui-express
   customCssUrl: 'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css',
   customJs: [
     'https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js',
