@@ -1,12 +1,11 @@
 /**
  * Webhook Routes
  * 
- * Defines webhook endpoints for external service integrations
- * including DappPortal transaction signing callbacks.
+ * Simple webhook endpoints for development and testing.
+ * DappPortal webhooks removed - all authorization now handled via frontend signatures.
  */
 
 import { Router, Request, Response } from 'express';
-import { handleDappPortalWebhook, webhookHealthCheck } from '../webhooks/dappPortalWebhook';
 import { asyncHandler } from '../middleware/errorHandler';
 import logger from '../../utils/logger';
 
@@ -24,20 +23,6 @@ router.use((req, res, next) => {
 });
 
 /**
- * DappPortal webhook endpoint
- * POST /api/v1/webhook/dappportal
- * 
- * Handles transaction signing completion callbacks from DappPortal
- */
-router.post('/dappportal', asyncHandler(handleDappPortalWebhook));
-
-/**
- * DappPortal webhook health check
- * GET /api/v1/webhook/dappportal/health
- */
-router.get('/dappportal/health', asyncHandler(webhookHealthCheck));
-
-/**
  * Mock payment webhook (for testing)
  * POST /api/v1/webhook/mock
  * 
@@ -50,6 +35,18 @@ router.post('/mock', asyncHandler(async (req: Request, res: Response) => {
     success: true,
     message: 'Mock webhook processed',
     received: req.body,
+    timestamp: new Date().toISOString(),
+  });
+}));
+
+/**
+ * General webhook health check
+ * GET /api/v1/webhook/health
+ */
+router.get('/health', asyncHandler(async (req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    message: 'Webhook system healthy',
     timestamp: new Date().toISOString(),
   });
 }));

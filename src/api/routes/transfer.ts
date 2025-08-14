@@ -1,7 +1,7 @@
 /**
  * Transfer Routes
  * 
- * Provides endpoints for transfer creation, execution, and status tracking
+ * Provides endpoints for user-authorized gasless transfer creation and status tracking
  * for cross-border remittance transactions.
  */
 
@@ -14,30 +14,23 @@ import logger from '../../utils/logger';
 const router: Router = Router();
 
 /**
- * Create a new transfer from a quote
+ * Create and execute a user-authorized gasless transfer
  * POST /api/v1/transfer
  */
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  const { quoteId, sender, recipient, gasless = true, metadata } = req.body;
+  const { quoteId, from, to, signature, nonce, deadline } = req.body;
 
-  if (!quoteId || !sender || !recipient) {
-    throw createValidationError('quoteId, sender, and recipient are required');
-  }
-
-  if (!sender.lineUserId || !sender.country) {
-    throw createValidationError('sender.lineUserId and sender.country are required');
-  }
-
-  if (!recipient.country) {
-    throw createValidationError('recipient.country is required');
+  if (!quoteId || !from || !to || !signature || nonce === undefined || !deadline) {
+    throw createValidationError('quoteId, from, to, signature, nonce, and deadline are required');
   }
 
   const result = await transferService.createTransfer({
     quoteId,
-    sender,
-    recipient,
-    gasless,
-    metadata,
+    from,
+    to,
+    signature,
+    nonce: parseInt(nonce),
+    deadline: parseInt(deadline),
   });
 
   if (result.success && result.transfer) {
@@ -47,25 +40,17 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
         transfer: {
           id: result.transfer.id,
           status: result.transfer.status,
+          senderAddress: result.transfer.senderAddress,
+          recipientAddress: result.transfer.recipientAddress,
           fromCurrency: result.transfer.fromCurrency,
           toCurrency: result.transfer.toCurrency,
           fromAmount: result.transfer.fromAmount,
           toAmount: result.transfer.toAmount,
           exchangeRate: result.transfer.exchangeRate,
           platformFeeAmount: result.transfer.platformFeeAmount,
-          totalCost: result.transfer.totalCost,
-          gasless: result.transfer.gasless,
-          sender: {
-            lineUserId: result.transfer.sender.lineUserId,
-            country: result.transfer.sender.country,
-            name: result.transfer.sender.name,
-          },
-          recipient: {
-            country: result.transfer.recipient.country,
-            name: result.transfer.recipient.name,
-          },
+          transactionHash: result.transfer.transactionHash,
           createdAt: result.transfer.createdAt,
-          expiresAt: result.transfer.expiresAt,
+          completedAt: result.transfer.completedAt,
         },
       },
       metadata: {
@@ -74,10 +59,13 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
       },
     });
 
-    logger.info('✅ Transfer created via API', {
+    logger.info('✅ User-authorized transfer processed via API', {
       transferId: result.transfer.id,
-      quoteId,
-      gasless,
+      senderAddress: result.transfer.senderAddress,
+      recipientAddress: result.transfer.recipientAddress,
+      amount: result.transfer.toAmount,
+      status: result.transfer.status,
+      transactionHash: result.transfer.transactionHash,
       correlationId: (req as any).correlationId,
     });
   } else {
@@ -96,66 +84,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
   }
 }));
 
-/**
- * Execute a transfer (initiate signing/processing)
- * POST /api/v1/transfer/:transferId/execute
- */
-router.post('/:transferId/execute', asyncHandler(async (req: Request, res: Response) => {
-  const { transferId } = req.params;
-
-  if (!transferId) {
-    throw createValidationError('transferId is required');
-  }
-
-  const result = await transferService.executeTransfer(transferId);
-
-  if (result.success && result.transfer) {
-    const responseData: any = {
-      transferId: result.transfer.id,
-      status: result.transfer.status,
-      gasless: result.transfer.gasless,
-    };
-
-    if (result.transfer.gasless) {
-      responseData.message = 'Gasless transfer completed successfully';
-      responseData.transactionHash = result.transfer.transactionHash;
-      responseData.completedAt = result.transfer.completedAt;
-    } else {
-      responseData.message = 'Please complete signing to execute transfer';
-      responseData.signingSessionId = result.transfer.signingSessionId;
-      // Note: signingUrl would come from the wallet service in a real implementation
-    }
-
-    res.status(200).json({
-      success: true,
-      data: responseData,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-
-    logger.info('✅ Transfer executed via API', {
-      transferId,
-      status: result.transfer.status,
-      gasless: result.transfer.gasless,
-      correlationId: (req as any).correlationId,
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: 'TRANSFER_EXECUTION_FAILED',
-        message: result.error,
-      },
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  }
-}));
+// Note: Transfer execution endpoint removed - transfers are now executed immediately upon creation
 
 /**
  * Get transfer status by ID
@@ -184,25 +113,13 @@ router.get('/:transferId', asyncHandler(async (req: Request, res: Response) => {
           toAmount: transfer.toAmount,
           exchangeRate: transfer.exchangeRate,
           platformFeeAmount: transfer.platformFeeAmount,
-          totalCost: transfer.totalCost,
-          gasless: transfer.gasless,
-          sender: {
-            lineUserId: transfer.sender.lineUserId,
-            country: transfer.sender.country,
-            name: transfer.sender.name,
-          },
-          recipient: {
-            country: transfer.recipient.country,
-            name: transfer.recipient.name,
-          },
-          signingSessionId: transfer.signingSessionId,
+          senderAddress: transfer.senderAddress,
+          recipientAddress: transfer.recipientAddress,
           transactionHash: transfer.transactionHash,
           createdAt: transfer.createdAt,
           updatedAt: transfer.updatedAt,
-          expiresAt: transfer.expiresAt,
           completedAt: transfer.completedAt,
           error: transfer.error,
-          retryCount: transfer.retryCount,
         },
       },
       metadata: {
@@ -227,18 +144,18 @@ router.get('/:transferId', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 /**
- * Get user's transfers
- * GET /api/v1/transfer/user/:lineUserId
+ * Get user's transfers by wallet address
+ * GET /api/v1/transfer/user/:address
  */
-router.get('/user/:lineUserId', asyncHandler(async (req: Request, res: Response) => {
-  const { lineUserId } = req.params;
+router.get('/user/:address', asyncHandler(async (req: Request, res: Response) => {
+  const { address } = req.params;
   const { limit = '10' } = req.query;
 
-  if (!lineUserId) {
-    throw createValidationError('lineUserId is required');
+  if (!address) {
+    throw createValidationError('wallet address is required');
   }
 
-  const transfers = await transferService.getUserTransfers(lineUserId, parseInt(limit as string));
+  const transfers = await transferService.getUserTransfers(address, parseInt(limit as string));
 
   res.status(200).json({
     success: true,
@@ -247,16 +164,14 @@ router.get('/user/:lineUserId', asyncHandler(async (req: Request, res: Response)
         id: transfer.id,
         quoteId: transfer.quoteId,
         status: transfer.status,
+        senderAddress: transfer.senderAddress,
+        recipientAddress: transfer.recipientAddress,
         fromCurrency: transfer.fromCurrency,
         toCurrency: transfer.toCurrency,
         fromAmount: transfer.fromAmount,
         toAmount: transfer.toAmount,
-        totalCost: transfer.totalCost,
-        gasless: transfer.gasless,
-        recipient: {
-          country: transfer.recipient.country,
-          name: transfer.recipient.name,
-        },
+        exchangeRate: transfer.exchangeRate,
+        platformFeeAmount: transfer.platformFeeAmount,
         transactionHash: transfer.transactionHash,
         createdAt: transfer.createdAt,
         completedAt: transfer.completedAt,

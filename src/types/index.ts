@@ -1,15 +1,16 @@
-// User Types
+// User Types - Address-based identity
 export interface User {
-  lineUserId: string;
-  walletAddress?: string;
+  walletAddress: string; // Primary identifier (was lineUserId)
+  firstTransferAt: string;
+  lastTransferAt: string;
+  transferCount: number;
   createdAt: string;
   updatedAt: string;
 }
 
-// Wallet Types
+// Wallet Types - Simplified
 export interface Wallet {
   address: string;
-  lineUserId: string;
   createdAt: string;
 }
 
@@ -31,39 +32,68 @@ export interface Quote {
 
 // Transfer Types
 export type TransferStatus = 
-  | 'PENDING_SIGNATURE'
-  | 'SIGNING' 
-  | 'PROCESSING' 
-  | 'COMPLETED' 
-  | 'FAILED';
+  | 'PENDING'           // Transfer created, awaiting validation
+  | 'PROCESSING'        // Transaction being processed on blockchain
+  | 'COMPLETED'         // Transfer completed successfully
+  | 'FAILED'            // Transfer failed
+  | 'EXPIRED';          // Transfer expired
 
 export interface Transfer {
   id: string;
   quoteId: string;
-  senderLineUserId: string;
-  recipientWallet: string;
   status: TransferStatus;
-  signingSessionId?: string;
+  
+  // Address-based participants
+  senderAddress: string;
+  recipientAddress: string;
+  
+  // Financial details (from quote)
+  fromCurrency: string;
+  toCurrency: string;
+  fromAmount: number;
+  toAmount: number;
+  exchangeRate: number;
+  platformFeeAmount: number;
+  
+  // Execution details
   transactionHash?: string;
-  errorMessage?: string;
+  
+  // Authorization details
+  signature: string;
+  nonce: number;
+  deadline: number;
+  
+  // Timing
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
+  
+  // Error handling
+  error?: string;
 }
 
-// Signing Session Types
-export interface SigningSession {
-  id: string;
-  transferId: string;
-  signingUrl: string;
-  status: 'PENDING' | 'SIGNED' | 'EXPIRED';
-  expiresAt: string;
-  createdAt: string;
+// User Authorization Types for EIP-712 signatures
+export interface TransferAuthorization {
+  from: string;
+  to: string;
+  amount: bigint;
+  nonce: number;
+  deadline: number;
 }
 
-// Session Types
+export interface AuthorizedTransferRequest {
+  from: string;
+  to: string;
+  amount: number; // USDT amount
+  signature: string;
+  nonce: number;
+  deadline: number;
+}
+
+// Session Types - Address-based
 export interface UserSession {
   token: string;
-  lineUserId: string;
+  walletAddress: string; // Changed from lineUserId
   expiresAt: string;
   createdAt: string;
 }
@@ -95,35 +125,34 @@ export interface QuoteResponse {
   quote: Quote;
 }
 
-// Transfer Request/Response Types
+// Transfer Request/Response Types - User-authorized
 export interface TransferRequest {
   quoteId: string;
-  recipientWallet: string;
-  paymentMethod: 'onramp' | 'blockchain';
+  from: string; // Sender wallet address
+  to: string; // Recipient wallet address
+  signature: string; // User's EIP-712 authorization signature
+  nonce: number;
+  deadline: number;
 }
 
 export interface TransferResponse {
   transferId: string;
-  signingUrl: string;
   status: TransferStatus;
+  transactionHash?: string;
 }
 
-// Webhook Types
-export interface DappPortalWebhookPayload {
-  sessionId: string;
-  status: 'transaction_signed' | 'transaction_failed';
-  transactionData?: {
-    hash: string;
-    signedTransaction: string;
-  };
-  timestamp: string;
+// Gasless Transaction Result Types
+export interface GaslessTransactionResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+  gasUsed?: bigint;
+  cost?: string; // Cost in KAIA
 }
 
-// Mock Provider Types
-export interface MockPaymentProvider {
-  processPayment(amount: number, currency: string): Promise<{
-    success: boolean;
-    transactionId: string;
-    processingTime: number;
-  }>;
+// Faucet Request Types
+export interface FaucetRequest {
+  userAddress: string;
+  signature: string; // User authorization signature
+  message: string; // Signed message
 }

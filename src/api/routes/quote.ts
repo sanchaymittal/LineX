@@ -1,8 +1,8 @@
 /**
  * Quote Routes
  * 
- * Provides endpoints for quote generation, retrieval, and exchange rate information
- * for cross-border remittance transactions.
+ * Provides anonymous endpoints for quote generation, retrieval, and exchange rate information
+ * for cross-border remittance transactions. No user identification required.
  */
 
 import { Router, Request, Response } from 'express';
@@ -14,21 +14,21 @@ import logger from '../../utils/logger';
 const router: Router = Router();
 
 /**
- * Generate a new quote
+ * Generate a new anonymous quote
  * POST /api/v1/quote
  */
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
-  const { fromCurrency, toCurrency, fromAmount, lineUserId } = req.body;
+  const { fromCurrency, toCurrency, fromAmount } = req.body;
 
-  if (!fromCurrency || !toCurrency || !fromAmount || !lineUserId) {
-    throw createValidationError('fromCurrency, toCurrency, fromAmount, and lineUserId are required');
+  if (!fromCurrency || !toCurrency || !fromAmount) {
+    throw createValidationError('fromCurrency, toCurrency, and fromAmount are required');
   }
 
   const result = await quoteService.generateQuote({
     fromCurrency: fromCurrency.toUpperCase(),
     toCurrency: toCurrency.toUpperCase(),
     fromAmount: parseFloat(fromAmount),
-    lineUserId,
+    // No lineUserId - quotes are anonymous
   });
 
   if (result.success && result.quote) {
@@ -60,7 +60,6 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
       fromCurrency: result.quote.fromCurrency,
       toCurrency: result.quote.toCurrency,
       fromAmount: result.quote.fromAmount,
-      lineUserId,
       correlationId: (req as any).correlationId,
     });
   } else {

@@ -1,87 +1,31 @@
 /**
  * Transfer Service
  * 
- * Orchestrates end-to-end cross-border remittance transfers using state machine pattern.
- * Integrates quotes, wallet management, and blockchain operations for seamless transfers.
- * 
- * State Flow:
- * PENDING → QUOTE_VALIDATED → SIGNING → PROCESSING → COMPLETED/FAILED
+ * Orchestrates user-authorized gasless cross-border remittance transfers.
+ * Integrates anonymous quotes and secure user authorization with blockchain execution.
  * 
  * Features:
- * - State machine-driven transfer orchestration
- * - Quote validation and integration
- * - Wallet service integration for signing
- * - Blockchain execution with gasless options
+ * - User-authorized gasless transfers with EIP-712 signatures
+ * - Anonymous quote integration
+ * - Address-based user management (implicit user creation)
+ * - Secure transfer execution with user fund control
  * - Comprehensive status tracking and error handling
  */
 
 import { randomUUID } from 'crypto';
 import { redisService } from '../redis/redisService';
 import { quoteService } from '../quote';
-import { walletService } from '../wallet';
 import { feeDelegationService } from '../blockchain';
+import { Transfer, TransferStatus, AuthorizedTransferRequest, GaslessTransactionResult } from '../../types';
 import logger from '../../utils/logger';
 
-export type TransferStatus = 
-  | 'PENDING'           // Transfer created, awaiting validation
-  | 'QUOTE_VALIDATED'   // Quote validated, ready for signing
-  | 'SIGNING'           // User signing transaction
-  | 'PROCESSING'        // Transaction being processed on blockchain
-  | 'COMPLETED'         // Transfer completed successfully
-  | 'FAILED'            // Transfer failed
-  | 'EXPIRED'           // Transfer expired
-  | 'CANCELLED';        // Transfer cancelled by user
-
-export interface TransferParticipant {
-  lineUserId: string;
-  walletAddress?: string;
-  name?: string;
-  country: string;
-}
-
-export interface TransferRequest {
+export interface CreateTransferRequest {
   quoteId: string;
-  sender: TransferParticipant;
-  recipient: TransferParticipant;
-  gasless?: boolean;
-  metadata?: Record<string, any>;
-}
-
-export interface Transfer {
-  id: string;
-  quoteId: string;
-  status: TransferStatus;
-  
-  // Participants
-  sender: TransferParticipant;
-  recipient: TransferParticipant;
-  
-  // Financial details (from quote)
-  fromCurrency: string;
-  toCurrency: string;
-  fromAmount: number;
-  toAmount: number;
-  exchangeRate: number;
-  platformFeeAmount: number;
-  totalCost: number;
-  
-  // Execution details
-  gasless: boolean;
-  signingSessionId?: string;
-  transactionHash?: string;
-  
-  // Timing
-  createdAt: Date;
-  updatedAt: Date;
-  expiresAt: Date;
-  completedAt?: Date;
-  
-  // Error handling
-  error?: string;
-  retryCount: number;
-  
-  // Metadata
-  metadata?: Record<string, any>;
+  from: string;         // Sender wallet address
+  to: string;           // Recipient wallet address
+  signature: string;    // User's EIP-712 authorization signature
+  nonce: number;
+  deadline: number;
 }
 
 export interface TransferResult {
@@ -96,62 +40,39 @@ export class TransferService {
   private readonly MAX_RETRY_COUNT = 3;
 
   /**
-   * Create a new transfer from a validated quote
+   * Create and execute a user-authorized gasless transfer
    */
-  async createTransfer(request: TransferRequest): Promise<TransferResult> {
+  async createTransfer(request: CreateTransferRequest): Promise<TransferResult> {
     try {
-      // Validate the quote first
-      const quoteValidation = await quoteService.validateQuote(request.quoteId);
-      if (!quoteValidation.isValid || !quoteValidation.quote) {
+      // 1. Validate the quote
+      const quote = await quoteService.getQuote(request.quoteId);
+      if (!quote || !quote.isValid) {
         return {
           success: false,
-          error: quoteValidation.error || 'Invalid quote',
+          error: 'Quote not found or expired',
         };
       }
 
-      const quote = quoteValidation.quote;
-
-      // Validate request
-      const validation = this.validateTransferRequest(request);
-      if (!validation.isValid) {
+      // 2. Validate addresses
+      if (!this.isValidAddress(request.from) || !this.isValidAddress(request.to)) {
         return {
           success: false,
-          error: validation.error,
+          error: 'Invalid wallet address format',
         };
       }
 
-      // Ensure sender has a connected wallet
-      const senderWallet = await walletService.getUserWallet(request.sender.lineUserId);
-      if (!senderWallet) {
-        return {
-          success: false,
-          error: 'Sender wallet not connected. Please connect your wallet first.',
-        };
-      }
+      // 3. Create users implicitly if they don't exist
+      await this.ensureUserExists(request.from);
+      await this.ensureUserExists(request.to);
 
-      // Ensure recipient has a connected wallet
-      const recipientWallet = await walletService.getUserWallet(request.recipient.lineUserId);
-      if (!recipientWallet) {
-        return {
-          success: false,
-          error: 'Recipient wallet not connected. Please ask recipient to connect their wallet first.',
-        };
-      }
-
-      // Create transfer object
+      // 4. Create transfer record
       const transfer: Transfer = {
         id: randomUUID(),
         quoteId: request.quoteId,
         status: 'PENDING',
         
-        sender: {
-          ...request.sender,
-          walletAddress: senderWallet.address,
-        },
-        recipient: {
-          ...request.recipient,
-          walletAddress: recipientWallet.address,
-        },
+        senderAddress: request.from.toLowerCase(),
+        recipientAddress: request.to.toLowerCase(),
         
         // Copy financial details from quote
         fromCurrency: quote.fromCurrency,
@@ -160,38 +81,60 @@ export class TransferService {
         toAmount: quote.toAmount,
         exchangeRate: quote.exchangeRate,
         platformFeeAmount: quote.platformFeeAmount,
-        totalCost: quote.totalCost,
         
-        gasless: request.gasless || true, // Default to gasless
+        // Authorization details
+        signature: request.signature,
+        nonce: request.nonce,
+        deadline: request.deadline,
         
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        expiresAt: new Date(Date.now() + this.TRANSFER_TTL * 1000),
-        
-        retryCount: 0,
-        metadata: request.metadata,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      // Store transfer
+      // 5. Store transfer
       await this.storeTransfer(transfer);
 
-      // Move to quote validated state
-      await this.updateTransferStatus(transfer.id, 'QUOTE_VALIDATED');
+      // 6. Execute authorized gasless transfer immediately
+      await this.updateTransferStatus(transfer.id, 'PROCESSING');
 
-      logger.info('✅ Transfer created successfully', {
+      const authRequest: AuthorizedTransferRequest = {
+        from: request.from,
+        to: request.to,
+        amount: quote.toAmount, // Use destination amount
+        signature: request.signature,
+        nonce: request.nonce,
+        deadline: request.deadline,
+      };
+
+      const result = await feeDelegationService.executeAuthorizedTransfer(authRequest);
+
+      if (result.success) {
+        // Update transfer with transaction hash
+        transfer.transactionHash = result.transactionHash;
+        transfer.status = 'COMPLETED';
+        transfer.completedAt = new Date().toISOString();
+        transfer.updatedAt = new Date().toISOString();
+      } else {
+        transfer.status = 'FAILED';
+        transfer.error = result.error;
+        transfer.updatedAt = new Date().toISOString();
+      }
+
+      await this.storeTransfer(transfer);
+
+      logger.info('✅ User-authorized transfer processed', {
         transferId: transfer.id,
-        quoteId: transfer.quoteId,
-        fromAmount: transfer.fromAmount,
-        fromCurrency: transfer.fromCurrency,
-        toAmount: transfer.toAmount,
-        toCurrency: transfer.toCurrency,
-        senderUserId: transfer.sender.lineUserId,
-        gasless: transfer.gasless,
+        senderAddress: transfer.senderAddress,
+        recipientAddress: transfer.recipientAddress,
+        amount: transfer.toAmount,
+        status: transfer.status,
+        transactionHash: transfer.transactionHash,
       });
 
       return {
-        success: true,
-        transfer: transfer || undefined,
+        success: result.success,
+        transfer,
+        error: result.error,
       };
     } catch (error) {
       logger.error('❌ Failed to create transfer:', error);
@@ -199,89 +142,6 @@ export class TransferService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
-    }
-  }
-
-  /**
-   * Execute the transfer (initiate signing process)
-   */
-  async executeTransfer(transferId: string): Promise<TransferResult> {
-    try {
-      const transfer = await this.getTransfer(transferId);
-      if (!transfer) {
-        return {
-          success: false,
-          error: 'Transfer not found',
-        };
-      }
-
-      if (transfer.status !== 'QUOTE_VALIDATED') {
-        return {
-          success: false,
-          error: `Cannot execute transfer in status: ${transfer.status}`,
-        };
-      }
-
-      // Update status to signing
-      await this.updateTransferStatus(transferId, 'SIGNING');
-
-      if (transfer.gasless) {
-        // For gasless transfers, execute directly using fee delegation
-        return await this.executeGaslessTransfer(transfer);
-      } else {
-        // For regular transfers, create signing session
-        return await this.createSigningSession(transfer);
-      }
-    } catch (error) {
-      logger.error('❌ Failed to execute transfer:', { transferId, error });
-      await this.updateTransferStatus(transferId, 'FAILED', error instanceof Error ? error.message : 'Unknown error');
-      
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
-
-  /**
-   * Handle signing completion (webhook callback)
-   */
-  async handleSigningCompletion(signingSessionId: string, success: boolean, transactionHash?: string, error?: string): Promise<void> {
-    try {
-      // Find transfer by signing session ID
-      const transfer = await this.findTransferBySigningSession(signingSessionId);
-      if (!transfer) {
-        logger.warn('Transfer not found for signing session', { signingSessionId });
-        return;
-      }
-
-      if (success && transactionHash) {
-        // Mark as processing, then completed
-        transfer.transactionHash = transactionHash;
-        transfer.completedAt = new Date();
-        await this.updateTransferStatus(transfer.id, 'PROCESSING');
-        await this.updateTransferStatus(transfer.id, 'COMPLETED');
-
-        // Invalidate the quote
-        await quoteService.invalidateQuote(transfer.quoteId);
-
-        logger.info('✅ Transfer completed via signing', {
-          transferId: transfer.id,
-          transactionHash,
-          signingSessionId,
-        });
-      } else {
-        // Mark as failed
-        await this.updateTransferStatus(transfer.id, 'FAILED', error || 'Signing failed');
-
-        logger.error('❌ Transfer failed during signing', {
-          transferId: transfer.id,
-          signingSessionId,
-          error,
-        });
-      }
-    } catch (error) {
-      logger.error('❌ Failed to handle signing completion:', { signingSessionId, error });
     }
   }
 
@@ -294,8 +154,8 @@ export class TransferService {
       const transfer = await redisService.getJson<Transfer>(transferKey);
       
       if (transfer) {
-        // Check if transfer has expired
-        if (new Date() > new Date(transfer.expiresAt) && !['COMPLETED', 'FAILED', 'CANCELLED'].includes(transfer.status)) {
+        // Check if transfer has expired (if it has a deadline)
+        if (transfer.deadline && Date.now() / 1000 > transfer.deadline && !['COMPLETED', 'FAILED'].includes(transfer.status)) {
           transfer.status = 'EXPIRED';
           await this.storeTransfer(transfer);
           logger.info('⏰ Transfer expired', { transferId });
@@ -310,16 +170,16 @@ export class TransferService {
   }
 
   /**
-   * Get transfers for a user
+   * Get transfers by user address
    */
-  async getUserTransfers(lineUserId: string, limit: number = 10): Promise<Transfer[]> {
+  async getUserTransfers(address: string, limit: number = 10): Promise<Transfer[]> {
     try {
-      const transferKeys = await redisService.keys(`${this.TRANSFER_KEY_PREFIX}*`);
+      const keys = await redisService.keys(`${this.TRANSFER_KEY_PREFIX}*`);
       const transfers: Transfer[] = [];
 
-      for (const key of transferKeys) {
+      for (const key of keys) {
         const transfer = await redisService.getJson<Transfer>(key);
-        if (transfer && transfer.sender.lineUserId === lineUserId) {
+        if (transfer && (transfer.senderAddress === address.toLowerCase() || transfer.recipientAddress === address.toLowerCase())) {
           transfers.push(transfer);
         }
       }
@@ -329,7 +189,7 @@ export class TransferService {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, limit);
     } catch (error) {
-      logger.error('❌ Failed to get user transfers:', { lineUserId, error });
+      logger.error('❌ Failed to get user transfers:', { address, error });
       return [];
     }
   }
@@ -348,14 +208,17 @@ export class TransferService {
       }
 
       // Can only cancel transfers that haven't started processing
-      if (!['PENDING', 'QUOTE_VALIDATED', 'SIGNING'].includes(transfer.status)) {
+      if (!['PENDING'].includes(transfer.status)) {
         return {
           success: false,
           error: `Cannot cancel transfer in status: ${transfer.status}`,
         };
       }
 
-      await this.updateTransferStatus(transferId, 'CANCELLED', reason);
+      transfer.status = 'FAILED';
+      transfer.error = reason || 'Cancelled by user';
+      transfer.updatedAt = new Date().toISOString();
+      await this.storeTransfer(transfer);
 
       logger.info('🚫 Transfer cancelled', {
         transferId,
@@ -363,10 +226,9 @@ export class TransferService {
         previousStatus: transfer.status,
       });
 
-      const updatedTransfer = await this.getTransfer(transferId);
       return {
         success: true,
-        transfer: updatedTransfer || undefined,
+        transfer,
       };
     } catch (error) {
       logger.error('❌ Failed to cancel transfer:', { transferId, error });
@@ -379,165 +241,12 @@ export class TransferService {
 
   // Private helper methods
 
-  private async executeGaslessTransfer(transfer: Transfer): Promise<TransferResult> {
-    try {
-      // Execute gasless transfer from sender to recipient
-      const result = await feeDelegationService.executeGaslessTransfer(
-        transfer.sender.walletAddress!,
-        transfer.recipient.walletAddress!,
-        transfer.fromAmount
-      );
-
-      if (result.success) {
-        transfer.transactionHash = result.transactionHash;
-        transfer.completedAt = new Date();
-        await this.updateTransferStatus(transfer.id, 'PROCESSING');
-        await this.updateTransferStatus(transfer.id, 'COMPLETED');
-
-        // Invalidate the quote
-        await quoteService.invalidateQuote(transfer.quoteId);
-
-        logger.info('✅ Gasless transfer completed', {
-          transferId: transfer.id,
-          transactionHash: result.transactionHash,
-          gasUsed: result.gasUsed?.toString(),
-          cost: result.cost,
-        });
-
-        return {
-          success: true,
-          transfer,
-        };
-      } else {
-        await this.updateTransferStatus(transfer.id, 'FAILED', result.error);
-        return {
-          success: false,
-          error: result.error,
-        };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      await this.updateTransferStatus(transfer.id, 'FAILED', errorMessage);
-      throw error;
-    }
-  }
-
-  private async createSigningSession(transfer: Transfer): Promise<TransferResult> {
-    try {
-      // Create signing session for regular (non-gasless) transfer
-      const signingResult = await walletService.createTransferSigningSession(
-        {
-          from: transfer.sender.walletAddress!,
-          to: transfer.recipient.walletAddress!,
-          amount: transfer.fromAmount,
-          gasless: false,
-        },
-        transfer.sender.lineUserId
-      );
-
-      if (signingResult.success) {
-        transfer.signingSessionId = signingResult.sessionId;
-        await this.storeTransfer(transfer);
-
-        logger.info('📝 Signing session created for transfer', {
-          transferId: transfer.id,
-          signingSessionId: signingResult.sessionId,
-          signingUrl: signingResult.signingUrl,
-        });
-
-        return {
-          success: true,
-          transfer,
-        };
-      } else {
-        await this.updateTransferStatus(transfer.id, 'FAILED', signingResult.error);
-        return {
-          success: false,
-          error: signingResult.error,
-        };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      await this.updateTransferStatus(transfer.id, 'FAILED', errorMessage);
-      throw error;
-    }
-  }
-
-  private async findTransferBySigningSession(signingSessionId: string): Promise<Transfer | null> {
-    try {
-      const transferKeys = await redisService.keys(`${this.TRANSFER_KEY_PREFIX}*`);
-      
-      for (const key of transferKeys) {
-        const transfer = await redisService.getJson<Transfer>(key);
-        if (transfer && transfer.signingSessionId === signingSessionId) {
-          return transfer;
-        }
-      }
-
-      return null;
-    } catch (error) {
-      logger.error('❌ Failed to find transfer by signing session:', { signingSessionId, error });
-      return null;
-    }
-  }
-
-  private validateTransferRequest(request: TransferRequest): {
-    isValid: boolean;
-    error?: string;
-  } {
-    if (!request.sender?.lineUserId) {
-      return {
-        isValid: false,
-        error: 'Sender LINE user ID is required',
-      };
-    }
-
-    if (!request.recipient?.lineUserId) {
-      return {
-        isValid: false,
-        error: 'Recipient LINE user ID is required',
-      };
-    }
-
-    if (!request.recipient?.country) {
-      return {
-        isValid: false,
-        error: 'Recipient country is required',
-      };
-    }
-
-    if (!request.sender?.country) {
-      return {
-        isValid: false,
-        error: 'Sender country is required',
-      };
-    }
-
-    // Validate country codes (simple validation)
-    const supportedCountries = ['KR', 'PH', 'US']; // Korea, Philippines, US
-    if (!supportedCountries.includes(request.sender.country)) {
-      return {
-        isValid: false,
-        error: 'Sender country not supported',
-      };
-    }
-
-    if (!supportedCountries.includes(request.recipient.country)) {
-      return {
-        isValid: false,
-        error: 'Recipient country not supported',
-      };
-    }
-
-    return { isValid: true };
-  }
-
   private async updateTransferStatus(transferId: string, status: TransferStatus, error?: string): Promise<void> {
     try {
       const transfer = await this.getTransfer(transferId);
       if (transfer) {
         transfer.status = status;
-        transfer.updatedAt = new Date();
+        transfer.updatedAt = new Date().toISOString();
         if (error) {
           transfer.error = error;
         }
@@ -557,6 +266,52 @@ export class TransferService {
   private async storeTransfer(transfer: Transfer): Promise<void> {
     const transferKey = `${this.TRANSFER_KEY_PREFIX}${transfer.id}`;
     await redisService.setJson(transferKey, transfer, this.TRANSFER_TTL);
+  }
+
+  /**
+   * Helper method to validate wallet address format
+   */
+  private isValidAddress(address: string): boolean {
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  }
+
+  /**
+   * Ensure a user exists (create implicitly if needed)
+   */
+  private async ensureUserExists(address: string): Promise<void> {
+    try {
+      const userKey = `user:${address.toLowerCase()}`;
+      const exists = await redisService.exists(userKey);
+      
+      if (!exists) {
+        const user = {
+          walletAddress: address.toLowerCase(),
+          firstTransferAt: new Date().toISOString(),
+          lastTransferAt: new Date().toISOString(),
+          transferCount: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        await redisService.setJson(userKey, user);
+        
+        logger.info('👤 User created implicitly', {
+          address: address.toLowerCase(),
+        });
+      } else {
+        // Update last transfer time for existing user
+        const user = await redisService.getJson<any>(userKey);
+        if (user) {
+          user.lastTransferAt = new Date().toISOString();
+          user.transferCount = (user.transferCount || 0) + 1;
+          user.updatedAt = new Date().toISOString();
+          await redisService.setJson(userKey, user);
+        }
+      }
+    } catch (error) {
+      logger.error('❌ Failed to ensure user exists:', { address, error });
+      throw error;
+    }
   }
 }
 

@@ -6,10 +6,3 @@
  */
 
 export { WalletService, walletService } from './walletService';
-export type {
-  WalletAddress,
-  SigningSession,
-  TransferRequest,
-  FaucetRequest,
-  SigningResult,
-} from './walletService';

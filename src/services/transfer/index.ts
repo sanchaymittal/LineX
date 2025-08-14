@@ -7,9 +7,6 @@
 
 export { TransferService, transferService } from './transferService';
 export type {
-  TransferStatus,
-  TransferParticipant,
-  TransferRequest,
-  Transfer,
+  CreateTransferRequest,
   TransferResult,
 } from './transferService';

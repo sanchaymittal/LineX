@@ -1,8 +1,8 @@
 /**
  * Wallet Routes
  * 
- * Provides endpoints for wallet management, transaction signing,
- * and DappPortal integration.
+ * Provides address-based endpoints for wallet balance queries,
+ * faucet claims, and user information.
  */
 
 import { Router, Request, Response } from 'express';
@@ -14,224 +14,68 @@ import logger from '../../utils/logger';
 const router: Router = Router();
 
 /**
- * Connect a wallet to a LINE user
- * POST /api/v1/wallet/connect
+ * Get wallet balance
+ * GET /api/v1/wallet/:address/balance
  */
-router.post('/connect', asyncHandler(async (req: Request, res: Response) => {
-  const { lineUserId, walletAddress } = req.body;
+router.get('/:address/balance', asyncHandler(async (req: Request, res: Response) => {
+  const { address } = req.params;
 
-  if (!lineUserId || !walletAddress) {
-    throw createValidationError('lineUserId and walletAddress are required');
+  if (!address) {
+    throw createValidationError('wallet address is required');
   }
 
-  const result = await walletService.connectWallet(lineUserId, walletAddress);
+  const result = await walletService.getWalletBalance(address);
 
   if (result.success) {
-    res.status(200).json({
-      success: true,
-      data: result.wallet,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: 'WALLET_CONNECTION_FAILED',
-        message: result.error,
-      },
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  }
-}));
-
-/**
- * Get user's wallet information
- * GET /api/v1/wallet/:lineUserId
- */
-router.get('/:lineUserId', asyncHandler(async (req: Request, res: Response) => {
-  const { lineUserId } = req.params;
-
-  if (!lineUserId) {
-    throw createValidationError('lineUserId is required');
-  }
-
-  const wallet = await walletService.getUserWallet(lineUserId);
-
-  if (wallet) {
-    res.status(200).json({
-      success: true,
-      data: wallet,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  } else {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: {
-        code: 'WALLET_NOT_FOUND',
-        message: 'No wallet found for this user',
-      },
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  }
-}));
-
-/**
- * Create faucet signing session
- * POST /api/v1/wallet/faucet
- */
-router.post('/faucet', asyncHandler(async (req: Request, res: Response) => {
-  const { lineUserId, userAddress, gasless = true } = req.body;
-
-  if (!lineUserId || !userAddress) {
-    throw createValidationError('lineUserId and userAddress are required');
-  }
-
-  const result = await walletService.createFaucetSigningSession(
-    { userAddress, gasless },
-    lineUserId
-  );
-
-  if (result.success) {
-    const responseData = gasless 
-      ? {
-          sessionId: result.sessionId,
-          status: 'completed',
-          gasless: true,
-          message: 'Gasless faucet claim completed successfully',
-        }
-      : {
-          sessionId: result.sessionId,
-          signingUrl: result.signingUrl,
-          status: 'pending_signature',
-          gasless: false,
-          message: 'Please complete signing to claim faucet',
-        };
-
-    res.status(gasless ? 200 : 201).json({
-      success: true,
-      data: responseData,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: 'FAUCET_REQUEST_FAILED',
-        message: result.error,
-      },
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  }
-}));
-
-/**
- * Create transfer signing session
- * POST /api/v1/wallet/transfer
- */
-router.post('/transfer', asyncHandler(async (req: Request, res: Response) => {
-  const { lineUserId, from, to, amount, gasless = true } = req.body;
-
-  if (!lineUserId || !from || !to || !amount) {
-    throw createValidationError('lineUserId, from, to, and amount are required');
-  }
-
-  if (amount <= 0) {
-    throw createValidationError('Amount must be greater than 0');
-  }
-
-  const result = await walletService.createTransferSigningSession(
-    { from, to, amount, gasless },
-    lineUserId
-  );
-
-  if (result.success) {
-    const responseData = gasless 
-      ? {
-          sessionId: result.sessionId,
-          status: 'completed',
-          gasless: true,
-          message: 'Gasless transfer completed successfully',
-          transfer: { from, to, amount },
-        }
-      : {
-          sessionId: result.sessionId,
-          signingUrl: result.signingUrl,
-          status: 'pending_signature',
-          gasless: false,
-          message: 'Please complete signing to execute transfer',
-          transfer: { from, to, amount },
-        };
-
-    res.status(gasless ? 200 : 201).json({
-      success: true,
-      data: responseData,
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  } else {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: 'TRANSFER_REQUEST_FAILED',
-        message: result.error,
-      },
-      metadata: {
-        timestamp: new Date().toISOString(),
-        requestId: (req as any).correlationId,
-      },
-    });
-  }
-}));
-
-/**
- * Get signing session status
- * GET /api/v1/wallet/session/:sessionId
- */
-router.get('/session/:sessionId', asyncHandler(async (req: Request, res: Response) => {
-  const { sessionId } = req.params;
-
-  if (!sessionId) {
-    throw createValidationError('sessionId is required');
-  }
-
-  const session = await walletService.getSigningSession(sessionId);
-
-  if (session) {
     res.status(200).json({
       success: true,
       data: {
-        sessionId: session.sessionId,
-        status: session.status,
-        transactionType: session.transactionType,
-        transactionHash: session.transactionHash,
-        createdAt: session.createdAt,
-        expiresAt: session.expiresAt,
-        error: session.error,
-        signingUrl: session.signingUrl,
+        address: address.toLowerCase(),
+        balance: result.balance,
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        requestId: (req as any).correlationId,
+      },
+    });
+  } else {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: 'BALANCE_FETCH_FAILED',
+        message: result.error,
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        requestId: (req as any).correlationId,
+      },
+    });
+  }
+}));
+
+/**
+ * Get user information by wallet address
+ * GET /api/v1/wallet/:address
+ */
+router.get('/:address', asyncHandler(async (req: Request, res: Response) => {
+  const { address } = req.params;
+
+  if (!address) {
+    throw createValidationError('wallet address is required');
+  }
+
+  const user = await walletService.getUser(address);
+
+  if (user) {
+    res.status(200).json({
+      success: true,
+      data: {
+        walletAddress: user.walletAddress,
+        firstTransferAt: user.firstTransferAt,
+        lastTransferAt: user.lastTransferAt,
+        transferCount: user.transferCount,
+        createdAt: user.createdAt,
       },
       metadata: {
         timestamp: new Date().toISOString(),
@@ -243,8 +87,8 @@ router.get('/session/:sessionId', asyncHandler(async (req: Request, res: Respons
       success: false,
       data: null,
       error: {
-        code: 'SESSION_NOT_FOUND',
-        message: 'Signing session not found or expired',
+        code: 'USER_NOT_FOUND',
+        message: 'No user found for this wallet address',
       },
       metadata: {
         timestamp: new Date().toISOString(),
@@ -252,6 +96,81 @@ router.get('/session/:sessionId', asyncHandler(async (req: Request, res: Respons
       },
     });
   }
+}));
+
+/**
+ * Claim test USDT from faucet (user-authorized)
+ * POST /api/v1/wallet/faucet
+ */
+router.post('/faucet', asyncHandler(async (req: Request, res: Response) => {
+  const { userAddress, signature, message } = req.body;
+
+  if (!userAddress || !signature || !message) {
+    throw createValidationError('userAddress, signature, and message are required');
+  }
+
+  const result = await walletService.claimFaucet({
+    userAddress,
+    signature,
+    message,
+  });
+
+  if (result.success) {
+    res.status(200).json({
+      success: true,
+      data: {
+        userAddress: userAddress.toLowerCase(),
+        transactionHash: result.transactionHash,
+        message: 'Faucet claim completed successfully',
+        amount: '100 USDT',
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        requestId: (req as any).correlationId,
+      },
+    });
+  } else {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: 'FAUCET_CLAIM_FAILED',
+        message: result.error,
+      },
+      metadata: {
+        timestamp: new Date().toISOString(),
+        requestId: (req as any).correlationId,
+      },
+    });
+  }
+}));
+
+/**
+ * Get user's transfer history
+ * GET /api/v1/wallet/:address/transfers
+ */
+router.get('/:address/transfers', asyncHandler(async (req: Request, res: Response) => {
+  const { address } = req.params;
+  const { limit = '10' } = req.query;
+
+  if (!address) {
+    throw createValidationError('wallet address is required');
+  }
+
+  const transfers = await walletService.getUserTransfers(address, parseInt(limit as string));
+
+  res.status(200).json({
+    success: true,
+    data: {
+      address: address.toLowerCase(),
+      transfers,
+      count: transfers.length,
+    },
+    metadata: {
+      timestamp: new Date().toISOString(),
+      requestId: (req as any).correlationId,
+    },
+  });
 }));
 
 export default router;

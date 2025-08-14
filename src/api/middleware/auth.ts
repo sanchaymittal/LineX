@@ -1,13 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import config from '../../config';
-import { dataService } from '../../services/redis/dataService';
 import logger from '../../utils/logger';
 
 // Request interface is extended in src/types/express.d.ts
 
 export interface JWTPayload {
-  lineUserId: string;
+  walletAddress: string;
   sessionToken: string;
   iat: number;
   exp: number;
@@ -47,37 +46,9 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return;
     }
 
-    // Check if session exists in Redis
-    const session = await dataService.getUserSession(decoded.sessionToken);
-    if (!session) {
-      res.status(401).json({
-        success: false,
-        data: null,
-        error: {
-          code: 'SESSION_EXPIRED',
-          message: 'Session has expired',
-        },
-      });
-      return;
-    }
-
-    // Check if session is expired
-    if (new Date() > new Date(session.expiresAt)) {
-      await dataService.deleteUserSession(decoded.sessionToken);
-      res.status(401).json({
-        success: false,
-        data: null,
-        error: {
-          code: 'SESSION_EXPIRED',
-          message: 'Session has expired',
-        },
-      });
-      return;
-    }
-
     // Attach user data to request
     (req as any).user = {
-      lineUserId: decoded.lineUserId,
+      walletAddress: decoded.walletAddress,
       sessionToken: decoded.sessionToken,
     };
 
@@ -111,7 +82,7 @@ export const optionalAuthMiddleware = async (req: Request, res: Response, next: 
   }
 };
 
-export function generateJWT(lineUserId: string, sessionToken: string): string {
-  const payload = { lineUserId, sessionToken };
+export function generateJWT(walletAddress: string, sessionToken: string): string {
+  const payload = { walletAddress, sessionToken };
   return jwt.sign(payload, config.jwt.secret, { expiresIn: '12h' });
 }

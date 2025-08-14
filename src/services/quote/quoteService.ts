@@ -1,15 +1,17 @@
 /**
  * Quote Service
  * 
- * Handles exchange rate calculations and quote generation for cross-border remittances.
+ * Handles anonymous exchange rate calculations and quote generation for cross-border remittances.
  * Supports KRW ↔ USD ↔ PHP conversions with fixed rates for demo purposes.
  * 
  * Features:
+ * - Anonymous quote generation - no user identification required
  * - Fixed exchange rates for predictable demo experience
  * - Fee calculation (0.5% platform fee)
  * - Quote caching with Redis TTL (5 minutes)
  * - Multiple currency pair support
  * - Quote validation and expiry management
+ * - Public access - anyone can get exchange rates
  */
 
 import { randomUUID } from 'crypto';
@@ -29,7 +31,7 @@ export interface QuoteRequest {
   fromCurrency: Currency;
   toCurrency: Currency;
   fromAmount: number;
-  lineUserId: string;
+  // No lineUserId - quotes are completely anonymous
 }
 
 export interface Quote {
@@ -42,7 +44,7 @@ export interface Quote {
   platformFee: number;
   platformFeeAmount: number;
   totalCost: number;
-  lineUserId: string;
+  // No lineUserId - quotes are anonymous
   createdAt: Date;
   expiresAt: Date;
   isValid: boolean;
@@ -116,7 +118,7 @@ export class QuoteService {
         platformFee: this.PLATFORM_FEE_RATE,
         platformFeeAmount: parseFloat(platformFeeAmount.toFixed(2)),
         totalCost: parseFloat(totalCost.toFixed(2)),
-        lineUserId: request.lineUserId,
+        // No lineUserId - anonymous quote
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + this.QUOTE_TTL * 1000),
         isValid: true,
@@ -125,7 +127,7 @@ export class QuoteService {
       // Store quote in Redis with TTL
       await this.storeQuote(quote);
 
-      logger.info('✅ Quote generated successfully', {
+      logger.info('✅ Anonymous quote generated successfully', {
         quoteId: quote.id,
         fromCurrency: quote.fromCurrency,
         toCurrency: quote.toCurrency,
@@ -133,7 +135,6 @@ export class QuoteService {
         toAmount: quote.toAmount,
         exchangeRate: quote.exchangeRate,
         platformFeeAmount: quote.platformFeeAmount,
-        lineUserId: quote.lineUserId,
       });
 
       return {
@@ -369,13 +370,7 @@ export class QuoteService {
       };
     }
 
-    if (!request.lineUserId) {
-      return {
-        isValid: false,
-        error: 'LINE user ID is required',
-      };
-    }
-
+    // No user validation needed - quotes are anonymous
     return { isValid: true };
   }
 
