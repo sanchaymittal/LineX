@@ -36,7 +36,7 @@ export class WalletService {
    */
   async getWalletBalance(address: string): Promise<{
     success: boolean;
-    balance?: { usdt: number; kaia: number };
+    balance?: { usdt: number };
     error?: string;
   }> {
     try {
@@ -47,6 +47,7 @@ export class WalletService {
         };
       }
 
+      // Get USDT balance
       const balanceResult = await simpleContractService.getBalance(address);
       if (!balanceResult.success) {
         return {
@@ -55,9 +56,12 @@ export class WalletService {
         };
       }
 
+      // Only return USDT balance (platform pays gas fees, so users don't need KAIA)
       return {
         success: true,
-        balance: balanceResult.data,
+        balance: {
+          usdt: balanceResult.data.usdt,
+        },
       };
     } catch (error) {
       logger.error('❌ Failed to get wallet balance:', { address, error });

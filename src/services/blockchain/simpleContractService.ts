@@ -85,12 +85,7 @@ export class SimpleContractService {
       const balance = BigInt(result);
       const balanceInfo = this.formatBalance(balance);
 
-      // Convert BigInt to string for logging
-      const loggableBalance = {
-        ...balanceInfo,
-        raw: balanceInfo.raw.toString(),
-      };
-      logger.debug('💰 Balance retrieved', { address, balance: loggableBalance });
+      logger.debug('💰 Balance retrieved', { address, balance: balanceInfo });
       return { success: true, data: balanceInfo };
     } catch (error) {
       logger.error('❌ Failed to get balance:', error);
@@ -151,7 +146,7 @@ export class SimpleContractService {
 
   // Utility methods
   private formatBalance(rawBalance: bigint): {
-    raw: bigint;
+    raw: string;
     formatted: string;
     usdt: number;
   } {
@@ -164,7 +159,7 @@ export class SimpleContractService {
     const usdt = parseFloat(formatted);
 
     return {
-      raw: rawBalance,
+      raw: rawBalance.toString(), // Convert BigInt to string for JSON serialization
       formatted,
       usdt,
     };
