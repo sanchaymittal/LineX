@@ -2,57 +2,62 @@ openapi: 3.0.3
 info:
   title: LineX Cross-Border Remittance API
   description: |
-    LineX is a cross-border remittance platform built as a LINE Mini DApp, leveraging Kaia blockchain 
-    for instant, low-cost transfers between Korea and Southeast Asia using USDT stablecoins.
+    LineX provides a comprehensive REST API for cross-border remittance using USDT stablecoins on the Kaia blockchain. 
+    This API features a **Web3-first architecture** with frontend wallet connections, anonymous quotes, and user-authorized gasless transactions.
     
-    ## Features
-    - Instant cross-border transfers using USDT
-    - Gasless transactions (platform pays gas fees)
-    - Real-time exchange rates for USD, KRW, and PHP
-    - LINE integration for seamless user experience
-    - Webhook-based wallet management via DappPortal
+    ## Key Features
+    - **Web3-First Architecture**: Frontend handles wallet connections (Web3Auth, MetaMask, WalletConnect)
+    - **Anonymous Quotes**: Generate quotes without user identification
+    - **Address-Based Identity**: All operations use wallet addresses instead of LINE user IDs
+    - **EIP-712 Signatures**: User authorization through cryptographic signatures
+    - **Gasless Transactions**: Platform pays gas fees for seamless user experience
+    - **Implicit User Creation**: Users created automatically on first transfer
+    - **USDT-Only Balances**: Users only need USDT (platform handles KAIA gas fees)
+    
+    ## Architecture
+    - **Network**: Kaia Testnet (Kairos) - Chain ID: 1001
+    - **TestUSDT Contract**: `0x09D48C3b2DE92DDfD26ebac28324F1226da1f400`
+    - **Deployment**: Vercel Serverless Functions
+    - **Storage**: Redis with TTL-based caching
     
     ## Authentication
-    Currently using simple Bearer token authentication (demo mode).
-    
-    ## Base URL
-    - Development: `http://localhost:3000`
-    - Production: TBD
-  version: 1.0.0
+    No authentication required for most endpoints (demo mode). All user authorization 
+    handled through EIP-712 signatures for sensitive operations.
+  version: 2.0.0
   contact:
     name: LineX Support
-    email: support@linex.io
+    url: https://github.com/sanchaymittal/LineX
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
   - url: http://localhost:3000
-    description: Development server
-  - url: https://linex-backend.vercel.app
+    description: Local development server
+  - url: https://linex-backend-qahxq1b0f-sanchaymittals-projects.vercel.app
     description: Production server (Vercel)
 
 tags:
   - name: Health
-    description: System health monitoring endpoints
-  - name: Wallet
-    description: Wallet management operations
+    description: System health monitoring and status endpoints
   - name: Quote
-    description: Exchange rate quotes and calculations
+    description: Anonymous exchange rate quotes and currency operations
+  - name: Wallet
+    description: Address-based wallet management and balance queries
   - name: Transfer
-    description: Cross-border transfer operations
+    description: User-authorized cross-border transfer operations
   - name: Webhook
-    description: External webhook handlers
+    description: Simplified webhook handlers for testing
 
 paths:
   /:
     get:
-      summary: API Root
-      description: Get API information and available endpoints
+      summary: API Root Information
+      description: Get API information, version, and available endpoint discovery
       operationId: getApiRoot
       responses:
         '200':
-          description: API information
+          description: API information and endpoint discovery
           content:
             application/json:
               schema:
@@ -62,190 +67,26 @@ paths:
     get:
       tags:
         - Health
-      summary: Basic Health Check
-      description: Check if the API and all critical services are operational
+      summary: Comprehensive Health Check
+      description: Check API health including Redis, blockchain provider, and smart contract connectivity
       operationId: getHealth
       responses:
         '200':
-          description: System is healthy
+          description: System health status (may include degraded services)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-        '503':
-          description: System is unhealthy
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
-  /health/detailed:
-    get:
-      tags:
-        - Health
-      summary: Detailed Health Check
-      description: Get detailed health information about all system components
-      operationId: getDetailedHealth
-      responses:
-        '200':
-          description: Detailed health status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DetailedHealthResponse'
-
-  /health/ready:
-    get:
-      tags:
-        - Health
-      summary: Readiness Probe
-      description: Check if the system is ready to serve requests
-      operationId: getReadiness
-      responses:
-        '200':
-          description: System is ready
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ReadinessResponse'
-        '503':
-          description: System is not ready
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /health/live:
-    get:
-      tags:
-        - Health
-      summary: Liveness Probe
-      description: Check if the application is alive
-      operationId: getLiveness
-      responses:
-        '200':
-          description: Application is alive
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LivenessResponse'
-
-  /api/v1/wallet/connect:
-    post:
-      tags:
-        - Wallet
-      summary: Connect Wallet
-      description: Connect a LINE user to a blockchain wallet address
-      operationId: connectWallet
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ConnectWalletRequest'
-      responses:
-        '200':
-          description: Wallet connected successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WalletResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/wallet/{lineUserId}:
-    get:
-      tags:
-        - Wallet
-      summary: Get User Wallet
-      description: Get wallet information for a LINE user
-      operationId: getUserWallet
-      parameters:
-        - name: lineUserId
-          in: path
-          required: true
-          description: LINE user ID
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Wallet information
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WalletResponse'
-        '404':
-          description: Wallet not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/wallet/{lineUserId}/balance:
-    get:
-      tags:
-        - Wallet
-      summary: Get Wallet Balance
-      description: Get USDT balance for a user's wallet
-      operationId: getWalletBalance
-      parameters:
-        - name: lineUserId
-          in: path
-          required: true
-          description: LINE user ID
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Wallet balance
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BalanceResponse'
-        '404':
-          description: Wallet not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/wallet/faucet:
-    post:
-      tags:
-        - Wallet
-      summary: Request Test USDT
-      description: Request test USDT from faucet (100 USDT per day limit)
-      operationId: requestFaucet
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FaucetRequest'
-      responses:
-        '200':
-          description: Faucet request successful
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FaucetResponse'
-        '400':
-          description: Invalid request or daily limit reached
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+  # Quote Operations (Anonymous)
   /api/v1/quote:
     post:
       tags:
         - Quote
-      summary: Generate Quote
-      description: Generate a new exchange rate quote for a transfer
+      summary: Generate Anonymous Quote
+      description: |
+        Generate exchange rate quote without user identification. 
+        Quote is valid for 5 minutes and cached in Redis.
       operationId: generateQuote
       requestBody:
         required: true
@@ -253,6 +94,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GenerateQuoteRequest'
+            example:
+              fromCurrency: "USD"
+              toCurrency: "PHP"
+              fromAmount: 100
       responses:
         '201':
           description: Quote generated successfully
@@ -261,7 +106,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuoteResponse'
         '400':
-          description: Invalid request
+          description: Invalid request parameters
           content:
             application/json:
               schema:
@@ -271,14 +116,14 @@ paths:
     get:
       tags:
         - Quote
-      summary: Get Quote
-      description: Get an existing quote by ID
+      summary: Get Quote Details
+      description: Retrieve existing quote by ID (5-minute TTL)
       operationId: getQuote
       parameters:
         - name: quoteId
           in: path
           required: true
-          description: Quote ID
+          description: Quote UUID
           schema:
             type: string
             format: uuid
@@ -296,158 +141,136 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/quote/rates:
+  /api/v1/quote/{quoteId}/validate:
     get:
       tags:
         - Quote
-      summary: Get Exchange Rates
-      description: Get current exchange rates for all supported currency pairs
-      operationId: getExchangeRates
+      summary: Validate Quote
+      description: Check if quote is still valid and within TTL
+      operationId: validateQuote
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
-          description: Exchange rates
+          description: Quote validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteValidationResponse'
+
+  /api/v1/quote/rates/current:
+    get:
+      tags:
+        - Quote
+      summary: Get Current Exchange Rates
+      description: Get current fixed exchange rates for all supported currency pairs
+      operationId: getCurrentRates
+      responses:
+        '200':
+          description: Current exchange rates with platform fee
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExchangeRatesResponse'
 
-  /api/v1/transfer:
-    post:
-      tags:
-        - Transfer
-      summary: Create Transfer
-      description: Create a new transfer from a validated quote
-      operationId: createTransfer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTransferRequest'
-      responses:
-        '201':
-          description: Transfer created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TransferResponse'
-        '400':
-          description: Invalid request or quote
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/transfer/{transferId}:
+  /api/v1/quote/currencies/pairs:
     get:
       tags:
-        - Transfer
-      summary: Get Transfer Status
-      description: Get current status and details of a transfer
-      operationId: getTransfer
-      parameters:
-        - name: transferId
-          in: path
-          required: true
-          description: Transfer ID
-          schema:
-            type: string
-            format: uuid
+        - Quote
+      summary: Get Supported Currency Pairs
+      description: Get list of all supported currency conversion pairs
+      operationId: getSupportedPairs
       responses:
         '200':
-          description: Transfer details
+          description: Supported currency pairs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransferDetailsResponse'
+                $ref: '#/components/schemas/CurrencyPairsResponse'
+
+  # Wallet Operations (Address-Based)
+  /api/v1/wallet/{address}:
+    get:
+      tags:
+        - Wallet
+      summary: Get User Information by Address
+      description: Get user profile information using wallet address
+      operationId: getUserByAddress
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Wallet address (0x prefixed, 40 hex characters)
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+            example: "0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C"
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
         '404':
-          description: Transfer not found
+          description: No user found for this address
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/transfer/{transferId}/execute:
-    post:
-      tags:
-        - Transfer
-      summary: Execute Transfer
-      description: Execute a transfer (initiate signing or gasless processing)
-      operationId: executeTransfer
-      parameters:
-        - name: transferId
-          in: path
-          required: true
-          description: Transfer ID
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Transfer execution initiated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExecuteTransferResponse'
-        '400':
-          description: Cannot execute transfer
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/transfer/{transferId}/cancel:
-    post:
-      tags:
-        - Transfer
-      summary: Cancel Transfer
-      description: Cancel a pending transfer
-      operationId: cancelTransfer
-      parameters:
-        - name: transferId
-          in: path
-          required: true
-          description: Transfer ID
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  description: Reason for cancellation
-      responses:
-        '200':
-          description: Transfer cancelled successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CancelTransferResponse'
-        '400':
-          description: Cannot cancel transfer
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/transfer/user/{lineUserId}:
+  /api/v1/wallet/{address}/balance:
     get:
       tags:
-        - Transfer
-      summary: Get User Transfers
-      description: Get transfer history for a user
+        - Wallet
+      summary: Get Wallet USDT Balance
+      description: |
+        Get USDT balance for wallet address. Only returns USDT balance 
+        since platform pays gas fees (no KAIA balance needed).
+      operationId: getWalletBalance
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Wallet address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+            example: "0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C"
+      responses:
+        '200':
+          description: Wallet USDT balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        '400':
+          description: Invalid address format or balance fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/wallet/{address}/transfers:
+    get:
+      tags:
+        - Wallet
+      summary: Get User Transfer History
+      description: Get transfer history for a wallet address
       operationId: getUserTransfers
       parameters:
-        - name: lineUserId
+        - name: address
           in: path
           required: true
-          description: LINE user ID
+          description: Wallet address
           schema:
             type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
         - name: limit
           in: query
           description: Maximum number of transfers to return
@@ -464,31 +287,208 @@ paths:
               schema:
                 $ref: '#/components/schemas/UserTransfersResponse'
 
-  /api/v1/webhook/dappportal:
+  /api/v1/wallet/faucet:
     post:
       tags:
-        - Webhook
-      summary: DappPortal Webhook
-      description: Handle DappPortal transaction signing callbacks
-      operationId: handleDappPortalWebhook
-      security:
-        - WebhookHMAC: []
+        - Wallet
+      summary: User-Authorized Faucet Claim
+      description: |
+        Claim 100 test USDT from faucet using EIP-712 signature authorization.
+        24-hour cooldown per address. Gasless transaction (platform pays fees).
+      operationId: claimFaucet
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DappPortalWebhookRequest'
+              $ref: '#/components/schemas/FaucetRequest'
+            example:
+              userAddress: "0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C"
+              signature: "0x1234567890abcdef..."
+              message: "Faucet claim message with nonce"
+      responses:
+        '200':
+          description: Faucet claim successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaucetResponse'
+        '400':
+          description: Invalid signature, cooldown active, or claim failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Transfer Operations (User-Authorized)
+  /api/v1/transfer:
+    post:
+      tags:
+        - Transfer
+      summary: Create User-Authorized Transfer
+      description: |
+        Create and execute transfer with EIP-712 signature authorization.
+        Transfer executes immediately upon creation with valid signature.
+        Creates users implicitly if they don't exist.
+      operationId: createTransfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+            example:
+              quoteId: "550e8400-e29b-41d4-a716-446655440000"
+              from: "0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C"
+              to: "0x123d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C1234"
+              signature: "0x1234567890abcdef..."
+              nonce: 1
+              deadline: 1723605600
+      responses:
+        '201':
+          description: Transfer created and processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferResponse'
+        '400':
+          description: Invalid request, signature, or quote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/transfer/{transferId}:
+    get:
+      tags:
+        - Transfer
+      summary: Get Transfer Status
+      description: Get current status and details of a transfer by ID
+      operationId: getTransferStatus
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          description: Transfer UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transfer details and status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransferDetailsResponse'
+        '404':
+          description: Transfer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/transfer/user/{address}:
+    get:
+      tags:
+        - Transfer
+      summary: Get Transfers by Address
+      description: Get transfer history for a specific wallet address
+      operationId: getTransfersByAddress
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Wallet address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+        - name: limit
+          in: query
+          description: Maximum transfers to return
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Transfer history for address
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTransfersResponse'
+
+  /api/v1/transfer/{transferId}/cancel:
+    post:
+      tags:
+        - Transfer
+      summary: Cancel Transfer
+      description: Cancel a pending transfer (if not yet completed)
+      operationId: cancelTransfer
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for cancellation
+                  example: "User requested cancellation"
+      responses:
+        '200':
+          description: Transfer cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelTransferResponse'
+        '400':
+          description: Cannot cancel transfer (already completed/failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Webhook Operations (Simplified)
+  /api/v1/webhook/mock:
+    post:
+      tags:
+        - Webhook
+      summary: Mock Payment Webhook
+      description: Mock webhook endpoint for testing payment provider callbacks
+      operationId: handleMockWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  example: "payment_completed"
+                transferId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  example: "success"
       responses:
         '200':
           description: Webhook processed successfully
         '400':
-          description: Invalid webhook data
-        '401':
-          description: Invalid signature
+          description: Invalid webhook payload
 
 components:
   schemas:
+    # Standard Response Schemas
     StandardResponse:
       type: object
       required:
@@ -511,13 +511,15 @@ components:
           properties:
             code:
               type: string
-              description: Error code
+              description: Error code identifier
+              example: "VALIDATION_ERROR"
             message:
               type: string
               description: Human-readable error message
+              example: "Invalid wallet address format"
             details:
               type: object
-              description: Additional error details
+              description: Additional error context
         metadata:
           type: object
           properties:
@@ -530,6 +532,7 @@ components:
               format: uuid
               description: Request correlation ID
 
+    # API Root Response
     ApiRootResponse:
       allOf:
         - $ref: '#/components/schemas/StandardResponse'
@@ -540,13 +543,16 @@ components:
               properties:
                 message:
                   type: string
-                  example: "LineX Cross-Border Remittance API"
+                  example: "LineX Cross-Border Remittance API - Web3 Architecture"
                 version:
                   type: string
-                  example: "1.0.0"
+                  example: "2.0.0"
                 environment:
                   type: string
-                  example: "development"
+                  example: "production"
+                architecture:
+                  type: string
+                  example: "Web3-first with address-based identity"
                 endpoints:
                   type: object
                   properties:
@@ -556,16 +562,29 @@ components:
                     quote:
                       type: string
                       example: "/api/v1/quote"
-                    transfer:
-                      type: string
-                      example: "/api/v1/transfer"
                     wallet:
                       type: string
                       example: "/api/v1/wallet"
+                    transfer:
+                      type: string
+                      example: "/api/v1/transfer"
                     webhooks:
                       type: string
                       example: "/api/v1/webhook"
+                network:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: "Kaia Testnet (Kairos)"
+                    chainId:
+                      type: integer
+                      example: 1001
+                    contractAddress:
+                      type: string
+                      example: "0x09D48C3b2DE92DDfD26ebac28324F1226da1f400"
 
+    # Health Response
     HealthResponse:
       allOf:
         - $ref: '#/components/schemas/StandardResponse'
@@ -577,7 +596,7 @@ components:
                 status:
                   type: string
                   enum: [healthy, degraded, unhealthy]
-                  description: Overall system health status
+                  description: Overall system health
                 timestamp:
                   type: string
                   format: date-time
@@ -586,7 +605,7 @@ components:
                   description: System uptime in seconds
                 environment:
                   type: string
-                  description: Current environment
+                  example: "production"
                 services:
                   type: object
                   properties:
@@ -596,61 +615,36 @@ components:
                       $ref: '#/components/schemas/ServiceHealth'
                     contract:
                       $ref: '#/components/schemas/ServiceHealth'
-                version:
-                  type: string
-                  description: API version
-                responseTime:
-                  type: string
-                  example: "541ms"
-
-    DetailedHealthResponse:
-      allOf:
-        - $ref: '#/components/schemas/HealthResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                system:
+                network:
                   type: object
                   properties:
-                    nodeVersion:
-                      type: string
-                      example: "v20.10.0"
-                    platform:
-                      type: string
-                      example: "darwin"
-                    memory:
-                      type: object
-                      properties:
-                        rss:
-                          type: integer
-                        heapTotal:
-                          type: integer
-                        heapUsed:
-                          type: integer
-                        external:
-                          type: integer
-                        arrayBuffers:
-                          type: integer
-                    cpuUsage:
-                      type: object
-                      properties:
-                        user:
-                          type: integer
-                        system:
-                          type: integer
-                config:
-                  type: object
-                  properties:
-                    demoMode:
-                      type: boolean
-                    kaiaChainId:
+                    chainId:
                       type: integer
                       example: 1001
-                    port:
+                    blockNumber:
                       type: integer
-                      example: 3000
+                      example: 234567890
+                    gasPrice:
+                      type: string
+                      example: "25000000000"
+                contract:
+                  type: object
+                  properties:
+                    address:
+                      type: string
+                      example: "0x09D48C3b2DE92DDfD26ebac28324F1226da1f400"
+                    name:
+                      type: string
+                      example: "Test USDT"
+                    symbol:
+                      type: string
+                      example: "USDT"
+                    decimals:
+                      type: integer
+                      example: 6
+                responseTime:
+                  type: string
+                  example: "342ms"
 
     ServiceHealth:
       type: object
@@ -659,173 +653,40 @@ components:
           type: string
           enum: [healthy, degraded, unhealthy]
         latency:
-          type: number
-          description: Service response time in milliseconds
+          type: string
+          description: Service response time
+          example: "23ms"
         details:
           type: object
-          description: Service-specific details
+          description: Service-specific health details
         error:
           type: string
+          nullable: true
           description: Error message if unhealthy
 
-    ReadinessResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [ready, not_ready]
-                timestamp:
-                  type: string
-                  format: date-time
-
-    LivenessResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [alive]
-                timestamp:
-                  type: string
-                  format: date-time
-                uptime:
-                  type: number
-
-    ConnectWalletRequest:
-      type: object
-      required:
-        - lineUserId
-        - walletAddress
-      properties:
-        lineUserId:
-          type: string
-          description: LINE user ID
-          example: "U4af4980629..."
-        walletAddress:
-          type: string
-          pattern: '^0x[a-fA-F0-9]{40}$'
-          description: Ethereum-compatible wallet address
-          example: "0x1234567890123456789012345678901234567890"
-
-    WalletResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                address:
-                  type: string
-                  pattern: '^0x[a-fA-F0-9]{40}$'
-                  example: "0x1234567890123456789012345678901234567890"
-                lineUserId:
-                  type: string
-                  example: "U4af4980629..."
-                createdAt:
-                  type: string
-                  format: date-time
-                lastUsed:
-                  type: string
-                  format: date-time
-
-    BalanceResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                address:
-                  type: string
-                  pattern: '^0x[a-fA-F0-9]{40}$'
-                balance:
-                  type: object
-                  properties:
-                    raw:
-                      type: string
-                      description: Balance in smallest unit (6 decimals)
-                      example: "1000000000"
-                    formatted:
-                      type: string
-                      description: Human-readable balance
-                      example: "1000.000000"
-                    decimals:
-                      type: integer
-                      example: 6
-                    symbol:
-                      type: string
-                      example: "USDT"
-
-    FaucetRequest:
-      type: object
-      required:
-        - lineUserId
-      properties:
-        lineUserId:
-          type: string
-          description: LINE user ID
-          example: "U4af4980629..."
-
-    FaucetResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                transactionHash:
-                  type: string
-                  pattern: '^0x[a-fA-F0-9]{64}$'
-                  example: "0xabc123..."
-                amount:
-                  type: string
-                  example: "100.000000"
-                recipient:
-                  type: string
-                  pattern: '^0x[a-fA-F0-9]{40}$'
-                gasUsed:
-                  type: string
-                  example: "50000"
-                message:
-                  type: string
-                  example: "Successfully sent 100.000000 USDT"
-
+    # Quote Request/Response Schemas
     GenerateQuoteRequest:
       type: object
       required:
         - fromCurrency
         - toCurrency
         - fromAmount
-        - lineUserId
       properties:
         fromCurrency:
           type: string
           enum: [USD, KRW, PHP]
           description: Source currency
+          example: "USD"
         toCurrency:
           type: string
           enum: [USD, KRW, PHP]
           description: Target currency
+          example: "PHP"
         fromAmount:
           type: number
           minimum: 0.01
-          description: Amount to send
+          description: Amount to convert
           example: 100
-        lineUserId:
-          type: string
-          description: LINE user ID requesting the quote
 
     QuoteResponse:
       allOf:
@@ -844,39 +705,70 @@ components:
         id:
           type: string
           format: uuid
-          description: Quote ID
+          description: Quote identifier
         fromCurrency:
           type: string
           enum: [USD, KRW, PHP]
+          example: "USD"
         toCurrency:
           type: string
           enum: [USD, KRW, PHP]
+          example: "PHP"
         fromAmount:
           type: number
-          description: Amount to send
+          description: Input amount
+          example: 100
         toAmount:
           type: number
-          description: Amount recipient will receive
+          description: Output amount after fees
+          example: 5544
         exchangeRate:
           type: number
           description: Applied exchange rate
+          example: 55.72
         platformFee:
           type: number
           description: Platform fee percentage
           example: 0.005
         platformFeeAmount:
           type: number
-          description: Platform fee amount
+          description: Platform fee in source currency
+          example: 0.5
         totalCost:
           type: number
           description: Total cost including fees
+          example: 100.5
         expiresAt:
           type: string
           format: date-time
-          description: Quote expiration time
+          description: Quote expiration (5 minutes from creation)
         isValid:
           type: boolean
           description: Whether quote is still valid
+        createdAt:
+          type: string
+          format: date-time
+
+    QuoteValidationResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                quoteId:
+                  type: string
+                  format: uuid
+                isValid:
+                  type: boolean
+                  description: Whether quote is valid and not expired
+                expiresAt:
+                  type: string
+                  format: date-time
+                timeRemaining:
+                  type: integer
+                  description: Seconds until expiration
 
     ExchangeRatesResponse:
       allOf:
@@ -888,63 +780,187 @@ components:
               properties:
                 rates:
                   type: object
-                  additionalProperties:
-                    type: number
-                  example:
-                    USD_KRW: 1150
-                    KRW_USD: 0.00087
-                    USD_PHP: 56
-                    PHP_USD: 0.0179
+                  properties:
+                    USD_KRW:
+                      type: number
+                      example: 1150
+                    KRW_USD:
+                      type: number
+                      example: 0.00087
+                    USD_PHP:
+                      type: number
+                      example: 56
+                    PHP_USD:
+                      type: number
+                      example: 0.0179
                 platformFee:
                   type: number
+                  description: Platform fee percentage
                   example: 0.005
                 timestamp:
                   type: string
                   format: date-time
 
+    CurrencyPairsResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                supportedCurrencies:
+                  type: array
+                  items:
+                    type: string
+                  example: ["USD", "KRW", "PHP"]
+                pairs:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      from:
+                        type: string
+                        example: "USD"
+                      to:
+                        type: string
+                        example: "KRW"
+                      rate:
+                        type: number
+                        example: 1150
+                  description: All supported conversion pairs
+
+    # Wallet Request/Response Schemas
+    UserResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                walletAddress:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                  example: "0x742d35cc8c29b3c4c4f0e9e0e0b24c2c2e5c5e5c"
+                firstTransferAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                lastTransferAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                transferCount:
+                  type: integer
+                  example: 5
+                createdAt:
+                  type: string
+                  format: date-time
+
+    BalanceResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                address:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                  example: "0x742d35cc8c29b3c4c4f0e9e0e0b24c2c2e5c5e5c"
+                balance:
+                  type: object
+                  properties:
+                    usdt:
+                      type: number
+                      description: USDT balance (only balance shown - platform pays gas fees)
+                      example: 1500.75
+                  description: Only USDT balance returned (no KAIA needed by users)
+
+    FaucetRequest:
+      type: object
+      required:
+        - userAddress
+        - signature
+        - message
+      properties:
+        userAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+          description: User wallet address
+          example: "0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C"
+        signature:
+          type: string
+          description: EIP-712 signature authorizing faucet claim
+          example: "0x1234567890abcdef..."
+        message:
+          type: string
+          description: Signed message content
+          example: "Faucet claim with nonce"
+
+    FaucetResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userAddress:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                  example: "0x742d35cc8c29b3c4c4f0e9e0e0b24c2c2e5c5e5c"
+                transactionHash:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{64}$'
+                  example: "0xabc123def456..."
+                message:
+                  type: string
+                  example: "Faucet claim completed successfully"
+                amount:
+                  type: string
+                  example: "100 USDT"
+
+    # Transfer Request/Response Schemas
     CreateTransferRequest:
       type: object
       required:
         - quoteId
-        - sender
-        - recipient
+        - from
+        - to
+        - signature
+        - nonce
+        - deadline
       properties:
         quoteId:
           type: string
           format: uuid
-          description: Valid quote ID
-        sender:
-          $ref: '#/components/schemas/TransferParticipant'
-        recipient:
-          $ref: '#/components/schemas/TransferParticipant'
-        gasless:
-          type: boolean
-          default: true
-          description: Whether to use gasless transfer
-        metadata:
-          type: object
-          description: Additional metadata
-
-    TransferParticipant:
-      type: object
-      required:
-        - lineUserId
-        - country
-      properties:
-        lineUserId:
-          type: string
-          description: LINE user ID
-        country:
-          type: string
-          enum: [US, KR, PH]
-          description: Country code
-        name:
-          type: string
-          description: Participant name
-        walletAddress:
+          description: Valid quote UUID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        from:
           type: string
           pattern: '^0x[a-fA-F0-9]{40}$'
-          description: Wallet address (auto-populated from wallet service)
+          description: Sender wallet address
+          example: "0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C"
+        to:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Recipient wallet address
+          example: "0x123d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C1234"
+        signature:
+          type: string
+          description: EIP-712 signature authorizing the transfer
+          example: "0x1234567890abcdef..."
+        nonce:
+          type: integer
+          description: User nonce for signature uniqueness
+          example: 1
+        deadline:
+          type: integer
+          description: Unix timestamp deadline for signature validity
+          example: 1723605600
 
     TransferResponse:
       allOf:
@@ -963,6 +979,7 @@ components:
         id:
           type: string
           format: uuid
+          description: Transfer identifier
         status:
           $ref: '#/components/schemas/TransferStatus'
         fromCurrency:
@@ -973,38 +990,38 @@ components:
           enum: [USD, KRW, PHP]
         fromAmount:
           type: number
+          example: 100
         toAmount:
           type: number
+          example: 5544
         exchangeRate:
           type: number
+          example: 55.72
         platformFeeAmount:
           type: number
+          example: 0.5
         totalCost:
           type: number
+          example: 100.5
         gasless:
           type: boolean
-        sender:
-          type: object
-          properties:
-            lineUserId:
-              type: string
-            country:
-              type: string
-            name:
-              type: string
-        recipient:
-          type: object
-          properties:
-            country:
-              type: string
-            name:
-              type: string
+          description: Whether transfer uses gasless execution
+          example: true
+        from:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Sender address
+        to:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Recipient address
         createdAt:
           type: string
           format: date-time
         expiresAt:
           type: string
           format: date-time
+          nullable: true
 
     TransferDetailsResponse:
       allOf:
@@ -1022,12 +1039,10 @@ components:
                         quoteId:
                           type: string
                           format: uuid
-                        signingSessionId:
-                          type: string
-                          description: DappPortal signing session ID
                         transactionHash:
                           type: string
                           pattern: '^0x[a-fA-F0-9]{64}$'
+                          nullable: true
                           description: Blockchain transaction hash
                         updatedAt:
                           type: string
@@ -1035,82 +1050,31 @@ components:
                         completedAt:
                           type: string
                           format: date-time
+                          nullable: true
                         error:
                           type: string
+                          nullable: true
                           description: Error message if failed
                         retryCount:
                           type: integer
                           description: Number of retry attempts
+                          example: 0
 
     TransferStatus:
       type: string
       enum:
         - PENDING
-        - QUOTE_VALIDATED
-        - SIGNING
         - PROCESSING
         - COMPLETED
         - FAILED
         - EXPIRED
-        - CANCELLED
       description: |
-        Transfer status values:
-        - PENDING: Transfer created, awaiting validation
-        - QUOTE_VALIDATED: Quote validated, ready for signing
-        - SIGNING: User signing transaction
+        Simplified transfer status values:
+        - PENDING: Transfer created, awaiting execution
         - PROCESSING: Transaction being processed on blockchain
         - COMPLETED: Transfer completed successfully
-        - FAILED: Transfer failed
-        - EXPIRED: Transfer expired
-        - CANCELLED: Transfer cancelled by user
-
-    ExecuteTransferResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                transferId:
-                  type: string
-                  format: uuid
-                status:
-                  $ref: '#/components/schemas/TransferStatus'
-                gasless:
-                  type: boolean
-                message:
-                  type: string
-                  description: Status message
-                signingSessionId:
-                  type: string
-                  description: Signing session ID (for non-gasless)
-                transactionHash:
-                  type: string
-                  description: Transaction hash (for gasless)
-                completedAt:
-                  type: string
-                  format: date-time
-                  description: Completion time (for gasless)
-
-    CancelTransferResponse:
-      allOf:
-        - $ref: '#/components/schemas/StandardResponse'
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                transferId:
-                  type: string
-                  format: uuid
-                status:
-                  type: string
-                  enum: [CANCELLED]
-                message:
-                  type: string
-                reason:
-                  type: string
+        - FAILED: Transfer failed (invalid signature, insufficient balance, etc.)
+        - EXPIRED: Transfer expired due to deadline
 
     UserTransfersResponse:
       allOf:
@@ -1120,6 +1084,10 @@ components:
             data:
               type: object
               properties:
+                address:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                  description: Wallet address
                 transfers:
                   type: array
                   items:
@@ -1143,45 +1111,49 @@ components:
                         type: number
                       totalCost:
                         type: number
-                      gasless:
-                        type: boolean
-                      recipient:
-                        type: object
-                        properties:
-                          country:
-                            type: string
-                          name:
-                            type: string
+                      from:
+                        type: string
+                        pattern: '^0x[a-fA-F0-9]{40}$'
+                      to:
+                        type: string
+                        pattern: '^0x[a-fA-F0-9]{40}$'
                       transactionHash:
                         type: string
+                        pattern: '^0x[a-fA-F0-9]{64}$'
+                        nullable: true
                       createdAt:
                         type: string
                         format: date-time
                       completedAt:
                         type: string
                         format: date-time
+                        nullable: true
                 count:
                   type: integer
                   description: Number of transfers returned
 
-    DappPortalWebhookRequest:
-      type: object
-      properties:
-        event:
-          type: string
-          enum: [transaction_signed, transaction_failed]
-        sessionId:
-          type: string
-        transactionHash:
-          type: string
-        signature:
-          type: string
-        error:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
+    CancelTransferResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                transferId:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [CANCELLED]
+                message:
+                  type: string
+                  example: "Transfer cancelled successfully"
+                reason:
+                  type: string
+                  example: "User requested cancellation"
 
+    # Error Response Schema
     ErrorResponse:
       allOf:
         - $ref: '#/components/schemas/StandardResponse'
@@ -1198,25 +1170,20 @@ components:
               properties:
                 code:
                   type: string
+                  enum:
+                    - VALIDATION_ERROR
+                    - QUOTE_NOT_FOUND
+                    - QUOTE_GENERATION_FAILED
+                    - TRANSFER_NOT_FOUND
+                    - TRANSFER_CREATION_FAILED
+                    - FAUCET_CLAIM_FAILED
+                    - BALANCE_FETCH_FAILED
+                    - USER_NOT_FOUND
+                    - INTERNAL_ERROR
                   example: "VALIDATION_ERROR"
                 message:
                   type: string
-                  example: "Invalid request parameters"
+                  example: "Invalid wallet address format"
                 details:
                   type: object
-
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: JWT token for user authentication
-    
-    WebhookHMAC:
-      type: apiKey
-      in: header
-      name: X-Webhook-Signature
-      description: HMAC-SHA256 signature for webhook verification
-
-security:
-  - BearerAuth: []
+                  description: Additional error context
