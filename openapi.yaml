@@ -294,7 +294,9 @@ paths:
       summary: User-Authorized Faucet Claim
       description: |
         Claim 100 test USDT from faucet using EIP-712 signature authorization.
-        24-hour cooldown per address. Gasless transaction (platform pays fees).
+        Smart contract enforces 24-hour cooldown per address. 
+        For testing, use different wallet addresses to bypass cooldown.
+        Gasless transaction (platform pays fees).
       operationId: claimFaucet
       requestBody:
         required: true
@@ -674,12 +676,12 @@ components:
       properties:
         fromCurrency:
           type: string
-          enum: [USD, KRW, PHP]
+          enum: [USD, KRW, PHP, USDT]
           description: Source currency
           example: "USD"
         toCurrency:
           type: string
-          enum: [USD, KRW, PHP]
+          enum: [USD, KRW, PHP, USDT]
           description: Target currency
           example: "PHP"
         fromAmount:
@@ -708,11 +710,11 @@ components:
           description: Quote identifier
         fromCurrency:
           type: string
-          enum: [USD, KRW, PHP]
+          enum: [USD, KRW, PHP, USDT]
           example: "USD"
         toCurrency:
           type: string
-          enum: [USD, KRW, PHP]
+          enum: [USD, KRW, PHP, USDT]
           example: "PHP"
         fromAmount:
           type: number
@@ -984,10 +986,10 @@ components:
           $ref: '#/components/schemas/TransferStatus'
         fromCurrency:
           type: string
-          enum: [USD, KRW, PHP]
+          enum: [USD, KRW, PHP, USDT]
         toCurrency:
           type: string
-          enum: [USD, KRW, PHP]
+          enum: [USD, KRW, PHP, USDT]
         fromAmount:
           type: number
           example: 100

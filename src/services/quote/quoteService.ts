@@ -18,7 +18,7 @@ import { randomUUID } from 'crypto';
 import { redisService } from '../redis/redisService';
 import logger from '../../utils/logger';
 
-export type Currency = 'KRW' | 'USD' | 'PHP';
+export type Currency = 'KRW' | 'USD' | 'PHP' | 'USDT';
 
 export interface ExchangeRate {
   fromCurrency: Currency;
@@ -69,6 +69,14 @@ export class QuoteService {
     'USD_PHP': 56.0,    // 1 USD = 56 PHP
     'PHP_USD': 1 / 56.0,
     
+    // USDT pairs (1:1 with USD for simplicity)
+    'USD_USDT': 1.0,    // 1 USD = 1 USDT
+    'USDT_USD': 1.0,    // 1 USDT = 1 USD
+    'KRW_USDT': 1 / 1150.0,  // 1 KRW = 0.00087 USDT
+    'USDT_KRW': 1150.0,      // 1 USDT = 1,150 KRW
+    'PHP_USDT': 1 / 56.0,    // 1 PHP = 0.0179 USDT
+    'USDT_PHP': 56.0,        // 1 USDT = 56 PHP
+    
     // Cross rates (USD as bridge currency)
     'KRW_PHP': (1 / 1150.0) * 56.0,  // KRW → USD → PHP
     'PHP_KRW': (1 / 56.0) * 1150.0,  // PHP → USD → KRW
@@ -77,6 +85,7 @@ export class QuoteService {
     'USD_USD': 1.0,
     'KRW_KRW': 1.0,
     'PHP_PHP': 1.0,
+    'USDT_USDT': 1.0,
   };
 
   /**
@@ -237,7 +246,7 @@ export class QuoteService {
       rate: number;
     }> = [];
 
-    const currencies: Currency[] = ['USD', 'KRW', 'PHP'];
+    const currencies: Currency[] = ['USD', 'KRW', 'PHP', 'USDT'];
     
     for (const from of currencies) {
       for (const to of currencies) {
@@ -314,17 +323,17 @@ export class QuoteService {
       };
     }
 
-    if (!['USD', 'KRW', 'PHP'].includes(request.fromCurrency)) {
+    if (!['USD', 'KRW', 'PHP', 'USDT'].includes(request.fromCurrency)) {
       return {
         isValid: false,
-        error: 'Invalid from currency. Supported: USD, KRW, PHP',
+        error: 'Invalid from currency. Supported: USD, KRW, PHP, USDT',
       };
     }
 
-    if (!['USD', 'KRW', 'PHP'].includes(request.toCurrency)) {
+    if (!['USD', 'KRW', 'PHP', 'USDT'].includes(request.toCurrency)) {
       return {
         isValid: false,
-        error: 'Invalid to currency. Supported: USD, KRW, PHP',
+        error: 'Invalid to currency. Supported: USD, KRW, PHP, USDT',
       };
     }
 
@@ -347,6 +356,7 @@ export class QuoteService {
       USD: 1.0,    // $1 minimum
       KRW: 1000,   // ₩1,000 minimum
       PHP: 50,     // ₱50 minimum
+      USDT: 1.0,   // 1 USDT minimum
     };
 
     if (request.fromAmount < minimumAmounts[request.fromCurrency]) {
@@ -361,6 +371,7 @@ export class QuoteService {
       USD: 10000,    // $10,000 maximum
       KRW: 10000000, // ₩10M maximum
       PHP: 500000,   // ₱500K maximum
+      USDT: 10000,   // 10,000 USDT maximum
     };
 
     if (request.fromAmount > maximumAmounts[request.fromCurrency]) {
