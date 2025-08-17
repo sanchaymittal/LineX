@@ -231,7 +231,7 @@ Common error codes:
 - Network: Kaia Testnet (Kairos)
 - Chain ID: 1001
 - Decimals: 6
-- Faucet: 100 USDT per claim (24-hour cooldown)
+- Faucet: 100 USDT per claim (24-hour cooldown per address, use different addresses for testing)
 
 ### Expected API Behavior
 - **Anonymous Quotes**: Work without user identification
@@ -245,7 +245,7 @@ Common error codes:
 - Global rate limit: 100 requests per minute per IP
 - Quote generation: 20 per minute per IP
 - Transfer creation: 10 per minute per IP  
-- Faucet requests: 1 per day per wallet address
+- Faucet requests: 24-hour cooldown per address (enforced by smart contract)
 
 ## Frontend Integration
 

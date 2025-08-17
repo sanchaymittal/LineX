@@ -122,7 +122,7 @@ export class FeeDelegationService {
         };
       }
 
-      // 2. Check if user can claim faucet (this is a read operation, no gas needed)
+      // 2. Check if user can claim faucet (smart contract has 24h cooldown)
       const faucetCheckData = this.buildFaucetCheckCall(request.userAddress);
       const canClaimResult = await provider.call({
         to: CONTRACT_CONSTANTS.ADDRESS,
@@ -131,9 +131,10 @@ export class FeeDelegationService {
 
       // Simple decode: if result is not 0x0000...0001, user cannot claim
       if (!canClaimResult.endsWith('0001')) {
+        logger.info('⏰ Faucet cooldown active for user', { userAddress: request.userAddress });
         return {
           success: false,
-          error: 'User not eligible for faucet claim (cooldown active or already claimed)',
+          error: 'Faucet cooldown active. Smart contract enforces 24-hour cooldown between claims. Use a different wallet address for testing.',
         };
       }
 
