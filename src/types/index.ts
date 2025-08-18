@@ -145,6 +145,7 @@ export interface TransferResponse {
 export interface GaslessTransactionResult {
   success: boolean;
   transactionHash?: string;
+  blockNumber?: number;
   error?: string;
   gasUsed?: bigint;
   cost?: string; // Cost in KAIA

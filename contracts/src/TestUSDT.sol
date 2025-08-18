@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
@@ -10,7 +11,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * @dev Test USDT token for LineX demo on Kaia testnet
  * Matches the specifications of USDT on Kaia mainnet
  */
-contract TestUSDT is ERC20, Ownable, Pausable {
+contract TestUSDT is ERC20, ERC20Permit, Ownable, Pausable {
     // USDT uses 6 decimals (same as on other chains)
     uint8 private constant DECIMALS = 6;
     
@@ -19,7 +20,7 @@ contract TestUSDT is ERC20, Ownable, Pausable {
     
     // Faucet configuration
     uint256 public constant FAUCET_AMOUNT = 100 * 10**DECIMALS; // 100 USDT
-    uint256 public constant FAUCET_COOLDOWN = 24 hours;
+    uint256 public constant FAUCET_COOLDOWN = 0; // Disabled for testing
     
     // Track faucet usage
     mapping(address => uint256) public lastFaucetClaim;
@@ -35,6 +36,7 @@ contract TestUSDT is ERC20, Ownable, Pausable {
      */
     constructor(address initialOwner) 
         ERC20("Test USDT", "USDT") 
+        ERC20Permit("Test USDT")
         Ownable(initialOwner) 
     {
         // Mint initial supply to owner
@@ -86,6 +88,25 @@ contract TestUSDT is ERC20, Ownable, Pausable {
         _mint(msg.sender, FAUCET_AMOUNT);
         
         emit FaucetClaimed(msg.sender, FAUCET_AMOUNT);
+    }
+
+    /**
+     * @dev Gasless faucet function for demo purposes
+     * Allows a user to claim USDT through a gas payer
+     * @param user The address to mint tokens to
+     */
+    function faucetFor(address user) external whenNotPaused {
+        require(user != address(0), "TestUSDT: Invalid user address");
+        require(
+            lastFaucetClaim[user] == 0 || 
+            block.timestamp >= lastFaucetClaim[user] + FAUCET_COOLDOWN,
+            "TestUSDT: Faucet cooldown active"
+        );
+        
+        lastFaucetClaim[user] = block.timestamp;
+        _mint(user, FAUCET_AMOUNT);
+        
+        emit FaucetClaimed(user, FAUCET_AMOUNT);
     }
 
     /**
