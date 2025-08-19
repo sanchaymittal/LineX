@@ -16,6 +16,8 @@ const corsOptions = {
     const allowedOrigins = [
       'https://line.me',
       'https://liff.line.me',
+      'https://linex-frontend.vercel.app',
+      'https://linex-backend-five.vercel.app',
       // Add your production domains here
     ];
     
