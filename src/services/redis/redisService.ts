@@ -101,6 +101,28 @@ export class RedisService {
       return false;
     }
   }
+
+  // Method aliases for DeFi service compatibility
+  /**
+   * Alias for getJson() - for DeFi service compatibility
+   */
+  async get<T>(key: string): Promise<T | null> {
+    return this.getJson<T>(key);
+  }
+
+  /**
+   * Alias for setJson() - for DeFi service compatibility
+   */
+  async set<T>(key: string, data: T, ttlSeconds?: number): Promise<void> {
+    return this.setJson(key, data, ttlSeconds);
+  }
+
+  /**
+   * Alias for setJson() with required TTL - for DeFi service compatibility
+   */
+  async setWithTTL<T>(key: string, data: T, ttlSeconds: number): Promise<void> {
+    return this.setJson(key, data, ttlSeconds);
+  }
 }
 
 // Export singleton instance
