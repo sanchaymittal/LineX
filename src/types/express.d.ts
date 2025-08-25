@@ -1,7 +1,7 @@
 declare namespace Express {
   export interface Request {
     user?: {
-      lineUserId: string;
+      address: string;
       sessionToken: string;
     };
     correlationId?: string;
