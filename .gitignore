@@ -82,3 +82,4 @@ docker-compose.override.yml
 dump.rdb
 appendonly.aof
 .vercel
+FRONTEND_GUIDE.md
