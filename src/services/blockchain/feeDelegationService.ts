@@ -13,7 +13,7 @@
  */
 
 import { Wallet, formatUnits } from '@kaiachain/ethers-ext';
-import { verifyTypedData, keccak256, toUtf8Bytes } from 'ethers';
+import { ethers, Contract, verifyTypedData, keccak256, toUtf8Bytes } from 'ethers';
 import { kaiaProvider } from './provider';
 import { simpleContractService } from './simpleContractService';
 import { CONTRACT_CONSTANTS } from '../../types/contracts';
@@ -23,6 +23,10 @@ import config from '../../config';
 
 export class FeeDelegationService {
   private gasPayerWallet: Wallet | null = null;
+  
+  private get gasPayerPrivateKey(): string {
+    return config.blockchain.gasPayerPrivateKey || process.env.GAS_PAYER_PRIVATE_KEY || '';
+  }
 
   // EIP-712 domain for signature verification
   private readonly EIP712_DOMAIN = {
@@ -362,6 +366,298 @@ export class FeeDelegationService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+    }
+  }
+
+  /**
+   * Generic execute method for DeFi operations (mock implementation)
+   * TODO: Implement specific DeFi operation execution
+   */
+  async execute(params: any): Promise<string> {
+    // Mock implementation - return a transaction hash
+    logger.info('Mock DeFi operation executed', { operation: 'generic', params: Object.keys(params) });
+    return `0x${Math.random().toString(16).substr(2, 64)}`;
+  }
+
+  /**
+   * DeFi-specific operation methods (mock implementations)
+   * TODO: Implement actual smart contract interactions
+   */
+  async executeSplit(params: {
+    user: string;
+    syShares: string;
+    orchestrator: string;
+    signature: string;
+    nonce: number;
+    deadline: number;
+  }): Promise<string> {
+    try {
+      const gasPayer = this.ensureGasPayer();
+      const provider = kaiaProvider.getProvider();
+      
+      logger.info('Executing PYT/NYT split with real contract interaction', {
+        user: params.user,
+        syShares: params.syShares,
+        orchestrator: params.orchestrator
+      });
+
+      const sharesBigInt = BigInt(params.syShares);
+      
+      // Build transaction to split SY shares into PYT + NYT
+      const orchestratorContract = new ethers.Contract(
+        params.orchestrator,
+        ['function splitShares(uint256 syShares, address recipient)'],
+        gasPayer as any // Kaia Wallet compatible with ethers Contract
+      );
+      
+      // Execute split transaction (gas paid by platform)
+      const tx = await orchestratorContract.splitShares!(sharesBigInt, params.user, {
+        gasLimit: 400000,
+        gasPrice: await provider.getGasPrice()
+      });
+      
+      await tx.wait();
+      
+      logger.info('✅ PYT/NYT split transaction successful', {
+        txHash: tx.hash,
+        user: params.user,
+        syShares: params.syShares
+      });
+      
+      return tx.hash;
+      
+    } catch (error) {
+      logger.error('❌ PYT/NYT split failed:', error);
+      throw error;
+    }
+  }
+
+  async executePortfolioCreate(params: any): Promise<string> {
+    logger.info('Mock portfolio create operation executed', { user: params.user });
+    return this.execute(params);
+  }
+
+  async executePortfolioRedeem(params: any): Promise<string> {
+    logger.info('Mock portfolio redeem operation executed', { user: params.user });
+    return this.execute(params);
+  }
+
+  async executePortfolioRebalance(params: any): Promise<string> {
+    logger.info('Mock portfolio rebalance operation executed', { user: params.user });
+    return this.execute(params);
+  }
+
+  async executeYieldDistribution(params: any): Promise<string> {
+    logger.info('Mock yield distribution operation executed', { amount: params.amount });
+    return this.execute(params);
+  }
+
+  async executeRecombine(params: {
+    user: string;
+    tokenAmount: string;
+    orchestrator: string;
+    signature: string;
+    nonce: number;
+    deadline: number;
+  }): Promise<string> {
+    try {
+      const gasPayer = this.ensureGasPayer();
+      const provider = kaiaProvider.getProvider();
+      
+      logger.info('Executing PYT/NYT recombine with real contract interaction', {
+        user: params.user,
+        tokenAmount: params.tokenAmount,
+        orchestrator: params.orchestrator
+      });
+
+      const amountBigInt = BigInt(params.tokenAmount);
+      
+      // Build transaction to recombine PYT + NYT back to SY shares
+      const orchestratorContract = new ethers.Contract(
+        params.orchestrator,
+        ['function recombineShares(uint256 tokenAmount, address recipient)'],
+        gasPayer as any // Kaia Wallet compatible with ethers Contract
+      );
+      
+      // Execute recombine transaction (gas paid by platform)
+      const tx = await orchestratorContract.recombineShares!(amountBigInt, params.user, {
+        gasLimit: 400000,
+        gasPrice: await provider.getGasPrice()
+      });
+      
+      await tx.wait();
+      
+      logger.info('✅ PYT/NYT recombine transaction successful', {
+        txHash: tx.hash,
+        user: params.user,
+        tokenAmount: params.tokenAmount
+      });
+      
+      return tx.hash;
+      
+    } catch (error) {
+      logger.error('❌ PYT/NYT recombine failed:', error);
+      throw error;
+    }
+  }
+
+  async executeDeposit(params: {
+    user: string;
+    amount: string;
+    vault: string;
+    signature: string;
+    nonce: number;
+    deadline: number;
+  }): Promise<string> {
+    try {
+      const gasPayer = this.ensureGasPayer();
+      const provider = kaiaProvider.getProvider();
+      
+      logger.info('Executing SY vault deposit with real contract interaction', {
+        user: params.user,
+        amount: params.amount,
+        vault: params.vault
+      });
+
+      // First, we need to approve the vault to spend USDT from user's account
+      // This requires the user to have already approved the vault or we handle it via permit
+      const usdtAddress = process.env.MOCK_USDT_CONTRACT_ADDRESS;
+      const amountBigInt = BigInt(params.amount);
+      
+      // Build transaction to deposit USDT to SY vault
+      const syVaultContract = new ethers.Contract(
+        params.vault,
+        ['function deposit(uint256 assets, address receiver) returns (uint256)'],
+        gasPayer as any // Kaia Wallet compatible with ethers Contract
+      );
+      
+      // Execute deposit transaction (gas paid by platform)
+      const tx = await syVaultContract.deposit!(amountBigInt, params.user, {
+        gasLimit: 300000,
+        gasPrice: await provider.getGasPrice()
+      });
+      
+      await tx.wait();
+      
+      logger.info('✅ SY vault deposit transaction successful', {
+        txHash: tx.hash,
+        user: params.user,
+        amount: params.amount
+      });
+      
+      return tx.hash;
+      
+    } catch (error) {
+      logger.error('❌ SY vault deposit failed:', error);
+      throw error;
+    }
+  }
+
+  async executeWithdraw(params: {
+    user: string;
+    shares: string;
+    vault: string;
+    signature: string;
+    nonce: number;
+    deadline: number;
+  }): Promise<string> {
+    try {
+      const gasPayer = this.ensureGasPayer();
+      const provider = kaiaProvider.getProvider();
+      
+      logger.info('Executing SY vault withdrawal with real contract interaction', {
+        user: params.user,
+        shares: params.shares,
+        vault: params.vault
+      });
+
+      const sharesBigInt = BigInt(params.shares);
+      
+      // Build transaction to withdraw from SY vault
+      const syVaultContract = new ethers.Contract(
+        params.vault,
+        ['function withdraw(uint256 assets, address receiver, address owner) returns (uint256)'],
+        gasPayer as any // Kaia Wallet compatible with ethers Contract
+      );
+      
+      // First convert shares to assets to get withdrawal amount
+      const previewContract = new ethers.Contract(
+        params.vault,
+        ['function previewRedeem(uint256 shares) view returns (uint256)'],
+        provider as any // Provider compatible with ethers Contract
+      );
+      
+      const assets = await previewContract.previewRedeem!(sharesBigInt);
+      
+      // Execute withdrawal transaction (gas paid by platform)
+      const tx = await syVaultContract.withdraw!(assets, params.user, params.user, {
+        gasLimit: 300000,
+        gasPrice: await provider.getGasPrice()
+      });
+      
+      await tx.wait();
+      
+      logger.info('✅ SY vault withdrawal transaction successful', {
+        txHash: tx.hash,
+        user: params.user,
+        shares: params.shares,
+        assets: assets.toString()
+      });
+      
+      return tx.hash;
+      
+    } catch (error) {
+      logger.error('❌ SY vault withdrawal failed:', error);
+      throw error;
+    }
+  }
+
+  async executeYieldClaim(params: {
+    user: string;
+    amount: string;
+    token: string;
+    signature: string;
+    nonce: number;
+    deadline: number;
+  }): Promise<string> {
+    try {
+      const gasPayer = this.ensureGasPayer();
+      const provider = kaiaProvider.getProvider();
+      
+      logger.info('Executing PYT yield claim with real contract interaction', {
+        user: params.user,
+        amount: params.amount,
+        token: params.token
+      });
+
+      const amountBigInt = BigInt(params.amount);
+      
+      // Build transaction to claim yield from PYT token
+      const pytTokenContract = new ethers.Contract(
+        params.token,
+        ['function claimYield() returns (uint256)'],
+        gasPayer as any // Kaia Wallet compatible with ethers Contract
+      );
+      
+      // Execute yield claim transaction (gas paid by platform)
+      const tx = await pytTokenContract.claimYield!({
+        gasLimit: 200000,
+        gasPrice: await provider.getGasPrice()
+      });
+      
+      await tx.wait();
+      
+      logger.info('✅ PYT yield claim transaction successful', {
+        txHash: tx.hash,
+        user: params.user,
+        amount: params.amount
+      });
+      
+      return tx.hash;
+      
+    } catch (error) {
+      logger.error('❌ PYT yield claim failed:', error);
+      throw error;
     }
   }
 
