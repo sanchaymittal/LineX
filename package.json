@@ -55,6 +55,7 @@
     "dotenv": "^17.2.1",
     "ethers": "^6.15.0",
     "express": "^5.1.0",
+    "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "joi": "^18.0.0",
     "jsonwebtoken": "^9.0.2",
