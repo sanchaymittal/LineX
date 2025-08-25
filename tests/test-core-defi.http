@@ -1,0 +1,108 @@
+# LineX DeFi Core API Tests
+# Essential endpoints for basic functionality testing
+
+@baseUrl = http://localhost:3000
+@prodUrl = https://linex.vercel.app
+@testUser = 0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C
+
+###############################################################################
+# 1. HEALTH & CONNECTIVITY TESTS
+###############################################################################
+
+### Check if server is running
+GET {{baseUrl}}/health
+
+### Check API root and available endpoints
+GET {{baseUrl}}/
+
+###############################################################################
+# 2. AUTHENTICATION & USER SETUP
+###############################################################################
+
+### Simulate wallet connection (get user info)
+GET {{baseUrl}}/api/v1/wallet/{{testUser}}
+
+### Get user balance (should work without auth for read operations)
+GET {{baseUrl}}/api/v1/wallet/{{testUser}}/balance
+
+###############################################################################
+# 3. READ-ONLY DEFI ENDPOINTS (No Auth Required)
+###############################################################################
+
+### Get vault APY (should show current yield rates)
+GET {{baseUrl}}/api/v1/defi/vault/apy
+
+### Get vault strategies (should show active strategies)
+GET {{baseUrl}}/api/v1/defi/vault/strategies
+
+### Get user SY vault balance
+GET {{baseUrl}}/api/v1/defi/vault/balance/{{testUser}}
+
+### Get user PYT/NYT positions
+GET {{baseUrl}}/api/v1/defi/positions/{{testUser}}
+
+### Get pending yield for user
+GET {{baseUrl}}/api/v1/defi/yield/pending/{{testUser}}
+
+### Get NYT status and maturity info
+GET {{baseUrl}}/api/v1/defi/nyt/status/{{testUser}}
+
+### Get NYT principal protection details
+GET {{baseUrl}}/api/v1/defi/nyt/info/{{testUser}}
+
+### Get portfolio composition
+GET {{baseUrl}}/api/v1/defi/portfolio/{{testUser}}
+
+### Get auto-compound balance
+GET {{baseUrl}}/api/v1/defi/autocompound/balance/{{testUser}}
+
+###############################################################################
+# 4. ANALYTICS & STRATEGY (Public Data)
+###############################################################################
+
+### Get all available strategies
+GET {{baseUrl}}/api/v1/defi/strategies
+
+### Get current APY for each strategy  
+GET {{baseUrl}}/api/v1/defi/strategies/apy
+
+### Get allocation suggestions
+GET {{baseUrl}}/api/v1/defi/strategies/suggestions
+
+### Get Total Value Locked (TVL)
+GET {{baseUrl}}/api/v1/defi/analytics/tvl
+
+### Get global yield statistics
+GET {{baseUrl}}/api/v1/defi/analytics/yields
+
+### Get user statistics
+GET {{baseUrl}}/api/v1/defi/analytics/users
+
+### Get performance metrics
+GET {{baseUrl}}/api/v1/defi/analytics/performance
+
+### Get comprehensive analytics summary
+GET {{baseUrl}}/api/v1/defi/analytics/summary
+
+###############################################################################
+# 5. ERROR HANDLING VALIDATION
+###############################################################################
+
+### Test invalid Ethereum address
+GET {{baseUrl}}/api/v1/defi/vault/balance/invalid-address
+
+### Test nonexistent user
+GET {{baseUrl}}/api/v1/defi/positions/0x0000000000000000000000000000000000000000
+
+###############################################################################
+# 6. PRODUCTION DEPLOYMENT TESTS (Vercel)
+###############################################################################
+
+### Test production health
+GET {{prodUrl}}/health
+
+### Test production API root  
+GET {{prodUrl}}/
+
+### Test production DeFi analytics
+GET {{prodUrl}}/api/v1/defi/analytics/summary
