@@ -60,10 +60,17 @@ export async function initializeDeFiServices(): Promise<DeFiServices> {
  * Attach DeFi services to Express app locals for use in routes
  */
 export function attachDeFiServices(app: any, services: DeFiServices): void {
+  // Create defiServices object with the correct property names
+  app.locals.defiServices = {
+    vault: services.standardizedYieldService,
+    autoCompoundVault: services.autoCompoundVaultService,
+    yieldSet: services.yieldSetService,
+    pytNytOrchestrator: services.pytNytOrchestratorService
+  };
+
+  // Also keep the original services for backward compatibility
   if (!app.locals.services) {
     app.locals.services = {};
   }
-
-  // Attach each service to app.locals for route access
   Object.assign(app.locals.services, services);
 }
