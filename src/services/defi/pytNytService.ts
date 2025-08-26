@@ -64,7 +64,7 @@ export class PYTNYTService {
     this.kaiaProvider = kaiaProvider;
     this.feeDelegation = feeDelegation;
     this.redis = redis;
-    this.orchestratorAddress = CONTRACT_ADDRESSES.YIELD_ORCHESTRATOR;
+    this.orchestratorAddress = CONTRACT_ADDRESSES.PYT_NYT_ORCHESTRATOR;
     this.pytTokenAddress = CONTRACT_ADDRESSES.PYT_TOKEN;
     this.nytTokenAddress = CONTRACT_ADDRESSES.NYT_TOKEN;
   }
@@ -161,7 +161,7 @@ export class PYTNYTService {
       const [pytContract, nytContract, orchestratorContract] = [
         getContractInstance('PYT_TOKEN', provider as any) as any,
         getContractInstance('NYT_TOKEN', provider as any) as any,
-        getContractInstance('YIELD_ORCHESTRATOR', provider as any) as any
+        getContractInstance('PYT_NYT_ORCHESTRATOR', provider as any) as any
       ];
 
       const [pytBalance, nytBalance, pytYieldAccrued, nytPrincipal, nytMaturity, nytMatured] = await Promise.all([

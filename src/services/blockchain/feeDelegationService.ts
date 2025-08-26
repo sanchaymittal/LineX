@@ -185,15 +185,48 @@ export class FeeDelegationService {
       
       // Check if the transaction actually succeeded (status = 1) or failed (status = 0)
       if (receipt.status === 0) {
+        // Try to get the revert reason by simulating the transaction
+        let revertReason = 'Transaction failed on-chain (status: 0)';
+        try {
+          // Decode the transaction to get the original call
+          const provider = kaiaProvider.getProvider();
+          const tx = await provider.getTransaction(receipt.transactionHash);
+          if (tx && tx.data && tx.to) {
+            // Try to simulate the call to get the revert reason
+            try {
+              await provider.call({
+                to: tx.to,
+                data: tx.data,
+                from: tx.from
+              });
+            } catch (callError: any) {
+              // Extract revert reason from error
+              if (callError.reason) {
+                revertReason = `Contract reverted: ${callError.reason}`;
+              } else if (callError.message) {
+                const reasonMatch = callError.message.match(/execution reverted: (.*?)"/);
+                if (reasonMatch && reasonMatch[1]) {
+                  revertReason = `Contract reverted: ${reasonMatch[1]}`;
+                } else {
+                  revertReason = `Contract call failed: ${callError.message}`;
+                }
+              }
+            }
+          }
+        } catch (debugError) {
+          logger.error('Failed to decode revert reason', debugError);
+        }
+
         logger.error('❌ Fee-delegated transaction failed on-chain', {
           transactionHash: receipt.transactionHash,
           blockNumber: receipt.blockNumber,
           status: receipt.status,
-          gasUsed: receipt.gasUsed?.toString()
+          gasUsed: receipt.gasUsed?.toString(),
+          revertReason
         });
         return {
           success: false,
-          error: 'Transaction failed on-chain (status: 0)',
+          error: revertReason,
           transactionHash: receipt.transactionHash,
           blockNumber: receipt.blockNumber
         };
