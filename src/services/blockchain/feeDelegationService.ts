@@ -182,6 +182,23 @@ export class FeeDelegationService {
       });
 
       const receipt = await sentTx.wait();
+      
+      // Check if the transaction actually succeeded (status = 1) or failed (status = 0)
+      if (receipt.status === 0) {
+        logger.error('❌ Fee-delegated transaction failed on-chain', {
+          transactionHash: receipt.transactionHash,
+          blockNumber: receipt.blockNumber,
+          status: receipt.status,
+          gasUsed: receipt.gasUsed?.toString()
+        });
+        return {
+          success: false,
+          error: 'Transaction failed on-chain (status: 0)',
+          transactionHash: receipt.transactionHash,
+          blockNumber: receipt.blockNumber
+        };
+      }
+
       logger.info('✅ Fee-delegated transaction confirmed', {
         transactionHash: receipt.transactionHash,
         blockNumber: receipt.blockNumber,
