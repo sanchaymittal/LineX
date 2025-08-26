@@ -14,6 +14,7 @@ import transferRoutes from './api/routes/transfer';
 import walletRoutes from './api/routes/wallet';
 import webhookRoutes from './api/routes/webhooks';
 import docsRoutes from './api/routes/docs';
+import signaturesRoutes from './api/routes/signatures';
 import defiRoutes from './api/v1/defi';
 
 export function createApp(): express.Application {
@@ -71,6 +72,7 @@ export function createApp(): express.Application {
   app.use('/api/v1/transfer', transferRoutes);
   app.use('/api/v1/wallet', walletRoutes);
   app.use('/api/v1/webhook', webhookRoutes);
+  app.use('/api/v1/signatures', signaturesRoutes);
   app.use('/api/v1/defi', defiRoutes);
 
   // API root endpoint
@@ -89,6 +91,7 @@ export function createApp(): express.Application {
           transfer: '/api/v1/transfer',
           wallet: '/api/v1/wallet',
           webhooks: '/api/v1/webhook',
+          signatures: '/api/v1/signatures',
           defi: '/api/v1/defi',
           documentation: '/api-docs',
         },
