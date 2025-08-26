@@ -26,6 +26,7 @@ export interface CreateTransferRequest {
   signature: string;    // User's EIP-712 authorization signature
   nonce: number;
   deadline: number;
+  senderRawTransaction?: string; // User's signed raw transaction for fee delegation
 }
 
 export interface TransferResult {
@@ -106,7 +107,7 @@ export class TransferService {
         deadline: request.deadline,
       };
 
-      const result = await feeDelegationService.executeAuthorizedTransfer(authRequest);
+      const result = await feeDelegationService.executeFeeDelegatedTransaction(request.senderRawTransaction || '');
 
       if (result.success) {
         // Update transfer with transaction hash
