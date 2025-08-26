@@ -16,9 +16,18 @@ info:
     
     ## Architecture
     - **Network**: Kaia Testnet (Kairos) - Chain ID: 1001
-    - **TestUSDT Contract**: `0x09D48C3b2DE92DDfD26ebac28324F1226da1f400`
+    - **TestUSDT Contract**: Base ERC-20 stablecoin for yield farming
+    - **StandardizedYield**: Multi-strategy diversified vault (Bob's workflow)
+    - **AutoCompoundVault**: Single-strategy auto-compound vault (Alice's workflow)
     - **Deployment**: Vercel Serverless Functions
     - **Storage**: Redis with TTL-based caching
+    
+    ## DeFi Integration
+    LineX features a clean, economically sound DeFi yield farming system:
+    - **2-Contract Architecture**: Focused on profitable stablecoin strategies
+    - **No Complex Tokenomics**: Eliminated PYT/NYT splitting for economic soundness
+    - **Two Product Types**: Diversification (StandardizedYield) vs Optimization (AutoCompound)
+    - **Real Value Creation**: ~9.5% diversified yield vs ~10-12% optimized yield
     
     ## Authentication
     No authentication required for most endpoints (demo mode). All user authorization 
@@ -46,6 +55,8 @@ tags:
     description: Address-based wallet management and balance queries
   - name: Transfer
     description: User-authorized cross-border transfer operations
+  - name: DeFi
+    description: Streamlined yield farming with StandardizedYield and AutoCompoundVault
   - name: Webhook
     description: Simplified webhook handlers for testing
 
@@ -458,6 +469,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  # DeFi Operations (Streamlined Architecture)
+  /api/v1/defi/vault/balance/{address}:
+    get:
+      tags:
+        - DeFi
+      summary: Get DeFi Vault Balances
+      description: |
+        Get user's balance in both StandardizedYield and AutoCompoundVault contracts.
+        Returns shares and underlying asset values for both vault types.
+      operationId: getVaultBalances
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Wallet address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+      responses:
+        '200':
+          description: Vault balance information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultBalanceResponse'
+        '400':
+          description: Invalid address or balance fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # Webhook Operations (Simplified)
   /api/v1/webhook/mock:
     post:
@@ -573,6 +616,9 @@ components:
                     webhooks:
                       type: string
                       example: "/api/v1/webhook"
+                    defi:
+                      type: string
+                      example: "/api/v1/defi"
                 network:
                   type: object
                   properties:
@@ -1181,6 +1227,8 @@ components:
                     - FAUCET_CLAIM_FAILED
                     - BALANCE_FETCH_FAILED
                     - USER_NOT_FOUND
+                    - VAULT_OPERATION_FAILED
+                    - DEFI_SERVICE_UNAVAILABLE
                     - INTERNAL_ERROR
                   example: "VALIDATION_ERROR"
                 message:
@@ -1189,3 +1237,80 @@ components:
                 details:
                   type: object
                   description: Additional error context
+
+    # DeFi Response Schemas
+    VaultBalanceResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                address:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                  description: User wallet address
+                standardizedYield:
+                  type: object
+                  description: StandardizedYield vault balance (Bob's multi-strategy)
+                  properties:
+                    shares:
+                      type: string
+                      description: User's SY vault shares
+                      example: "1000.5"
+                    underlyingAssets:
+                      type: string
+                      description: Underlying USDT value of shares
+                      example: "1050.75"
+                    strategies:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            example: "MockLendingStrategy"
+                          allocation:
+                            type: number
+                            example: 40
+                          apy:
+                            type: string
+                            example: "10.0"
+                    blendedAPY:
+                      type: string
+                      description: Weighted average APY across strategies
+                      example: "9.5"
+                autoCompoundVault:
+                  type: object
+                  description: AutoCompoundVault balance (Alice's single-strategy)
+                  properties:
+                    shares:
+                      type: string
+                      description: User's AutoCompound vault shares
+                      example: "950.25"
+                    underlyingAssets:
+                      type: string
+                      description: Underlying USDT value with compounding
+                      example: "1025.50"
+                    pricePerShare:
+                      type: string
+                      description: Current share price (grows via compounding)
+                      example: "1.078"
+                    strategy:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          example: "MockStakingStrategy"
+                        apy:
+                          type: string
+                          example: "8.0"
+                        compoundedAPY:
+                          type: string
+                          description: Effective APY with compounding
+                          example: "10.5"
+                totalValue:
+                  type: string
+                  description: Combined value across both vault types
+                  example: "2076.25"
