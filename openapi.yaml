@@ -470,15 +470,71 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
   # DeFi Operations (Streamlined Architecture)
+  /api/v1/defi/vault/deposit:
+    post:
+      tags:
+        - DeFi
+      summary: Deposit to StandardizedYield Vault
+      description: |
+        Deposit USDT to StandardizedYield vault with EIP-712 signature authorization.
+        Multi-strategy diversified vault for risk-conscious users (Bob's workflow).
+      operationId: depositToSYVault
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaultDepositRequest'
+      responses:
+        '200':
+          description: Deposit successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultDepositResponse'
+        '400':
+          description: Invalid input or signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/defi/vault/withdraw:
+    post:
+      tags:
+        - DeFi
+      summary: Withdraw from StandardizedYield Vault
+      description: |
+        Withdraw from StandardizedYield vault with EIP-712 signature authorization.
+      operationId: withdrawFromSYVault
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaultWithdrawRequest'
+      responses:
+        '200':
+          description: Withdrawal successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultWithdrawResponse'
+        '400':
+          description: Invalid input or signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/defi/vault/balance/{address}:
     get:
       tags:
         - DeFi
-      summary: Get DeFi Vault Balances
+      summary: Get StandardizedYield Vault Balance
       description: |
-        Get user's balance in both StandardizedYield and AutoCompoundVault contracts.
-        Returns shares and underlying asset values for both vault types.
-      operationId: getVaultBalances
+        Get user's balance in StandardizedYield vault including shares and underlying assets.
+      operationId: getSYVaultBalance
       parameters:
         - name: address
           in: path
@@ -493,13 +549,267 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VaultBalanceResponse'
+                $ref: '#/components/schemas/SYVaultBalanceResponse'
         '400':
-          description: Invalid address or balance fetch failed
+          description: Invalid address
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/defi/vault/apy:
+    get:
+      tags:
+        - DeFi
+      summary: Get StandardizedYield Vault APY
+      description: Get current APY and vault information for StandardizedYield vault
+      operationId: getSYVaultAPY
+      responses:
+        '200':
+          description: Vault APY and information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultAPYResponse'
+
+  /api/v1/defi/vault/strategies:
+    get:
+      tags:
+        - DeFi
+      summary: Get Vault Strategies
+      description: Get active strategies and allocations for StandardizedYield vault
+      operationId: getVaultStrategies
+      responses:
+        '200':
+          description: Vault strategies information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultStrategiesResponse'
+
+  /api/v1/defi/autocompound/deposit:
+    post:
+      tags:
+        - DeFi
+      summary: Deposit to AutoCompound Vault
+      description: |
+        Deposit USDT to AutoCompoundVault with EIP-712 signature authorization.
+        Single-strategy auto-compound vault for yield maximalists (Alice's workflow).
+      operationId: depositToAutoCompound
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaultDepositRequest'
+      responses:
+        '200':
+          description: Deposit successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoCompoundDepositResponse'
+
+  /api/v1/defi/autocompound/withdraw:
+    post:
+      tags:
+        - DeFi
+      summary: Withdraw from AutoCompound Vault
+      description: |
+        Withdraw from AutoCompoundVault with EIP-712 signature authorization.
+      operationId: withdrawFromAutoCompound
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VaultWithdrawRequest'
+      responses:
+        '200':
+          description: Withdrawal successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoCompoundWithdrawResponse'
+
+  /api/v1/defi/autocompound/balance/{address}:
+    get:
+      tags:
+        - DeFi
+      summary: Get AutoCompound Vault Balance
+      description: |
+        Get user's balance in AutoCompoundVault including shares and compounded assets.
+      operationId: getAutoCompoundBalance
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Wallet address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+      responses:
+        '200':
+          description: AutoCompound vault balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoCompoundBalanceResponse'
+
+  /api/v1/defi/autocompound/info:
+    get:
+      tags:
+        - DeFi
+      summary: Get AutoCompound Vault Information
+      description: Get AutoCompound vault information including APY and compounding details
+      operationId: getAutoCompoundInfo
+      responses:
+        '200':
+          description: AutoCompound vault information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoCompoundInfoResponse'
+
+  /api/v1/defi/autocompound/compound:
+    post:
+      tags:
+        - DeFi
+      summary: Trigger Manual Compounding
+      description: |
+        Attempt to trigger manual compounding (typically auto-compounds automatically)
+      operationId: triggerCompounding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userAddress:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+              required:
+                - userAddress
+      responses:
+        '200':
+          description: Compounding result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+
+  # Signature Generation Endpoints
+  /api/v1/signatures/deposit:
+    post:
+      tags:
+        - DeFi
+      summary: Generate SY Vault Deposit Signature (Legacy)
+      description: Generate fee-delegated deposit signature for StandardizedYield vault
+      operationId: generateSYDepositSignature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureRequest'
+      responses:
+        '200':
+          description: Signature generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureResponse'
+
+  /api/v1/signatures/deposit/sy:
+    post:
+      tags:
+        - DeFi
+      summary: Generate SY Vault Deposit Signature
+      description: Generate fee-delegated deposit signature for StandardizedYield vault
+      operationId: generateSYDepositSignatureExplicit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureRequest'
+      responses:
+        '200':
+          description: Signature generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureResponse'
+
+  /api/v1/signatures/deposit/autocompound:
+    post:
+      tags:
+        - DeFi
+      summary: Generate AutoCompound Deposit Signature
+      description: Generate fee-delegated deposit signature for AutoCompound vault
+      operationId: generateAutoCompoundDepositSignature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureRequest'
+      responses:
+        '200':
+          description: Signature generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureResponse'
+
+  /api/v1/signatures/approval:
+    post:
+      tags:
+        - DeFi
+      summary: Generate Token Approval Signature
+      description: Generate fee-delegated token approval signature
+      operationId: generateApprovalSignature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalSignatureRequest'
+      responses:
+        '200':
+          description: Signature generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureResponse'
+
+  /api/v1/signatures/execute:
+    post:
+      tags:
+        - DeFi
+      summary: Execute Fee-Delegated Transaction
+      description: Execute a fee-delegated transaction using generated signature
+      operationId: executeFeeDelegatedTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                senderRawTransaction:
+                  type: string
+                  description: Signed transaction from signature endpoint
+              required:
+                - senderRawTransaction
+      responses:
+        '200':
+          description: Transaction executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
 
   # Webhook Operations (Simplified)
   /api/v1/webhook/mock:
@@ -1238,8 +1548,179 @@ components:
                   type: object
                   description: Additional error context
 
+    # DeFi Request Schemas
+    VaultDepositRequest:
+      type: object
+      required:
+        - amount
+        - signature
+        - nonce
+        - deadline
+      properties:
+        amount:
+          type: string
+          description: Amount to deposit (in token units)
+          example: "1000000000"
+        signature:
+          type: string
+          description: EIP-712 signature
+        nonce:
+          type: integer
+          minimum: 1
+        deadline:
+          type: integer
+          description: Unix timestamp deadline
+        senderRawTransaction:
+          type: string
+          description: Signed transaction data
+          nullable: true
+
+    VaultWithdrawRequest:
+      type: object
+      required:
+        - shares
+        - signature
+        - nonce
+        - deadline
+      properties:
+        shares:
+          type: string
+          description: Shares to withdraw
+          example: "1000000000"
+        signature:
+          type: string
+          description: EIP-712 signature
+        nonce:
+          type: integer
+          minimum: 1
+        deadline:
+          type: integer
+          description: Unix timestamp deadline
+        senderRawTransaction:
+          type: string
+          description: Signed transaction data
+          nullable: true
+
+    SignatureRequest:
+      type: object
+      required:
+        - privateKey
+        - userAddress
+        - vaultAddress
+        - amount
+      properties:
+        privateKey:
+          type: string
+          description: Private key for signing (testing only)
+        userAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        vaultAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        amount:
+          type: string
+          description: Amount in token units
+
+    ApprovalSignatureRequest:
+      type: object
+      required:
+        - privateKey
+        - userAddress
+        - tokenAddress
+        - spenderAddress
+        - amount
+      properties:
+        privateKey:
+          type: string
+          description: Private key for signing (testing only)
+        userAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        tokenAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        spenderAddress:
+          type: string
+          pattern: '^0x[a-fA-F0-9]{40}$'
+        amount:
+          type: string
+          description: Amount to approve
+
     # DeFi Response Schemas
-    VaultBalanceResponse:
+    VaultDepositResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                txHash:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{64}$'
+                shares:
+                  type: string
+                  description: Shares received from deposit
+                timestamp:
+                  type: number
+
+    VaultWithdrawResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                txHash:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{64}$'
+                assets:
+                  type: string
+                  description: Assets withdrawn
+                timestamp:
+                  type: number
+
+    AutoCompoundDepositResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                txHash:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{64}$'
+                shares:
+                  type: string
+                compoundingEnabled:
+                  type: boolean
+                  example: true
+                timestamp:
+                  type: number
+
+    AutoCompoundWithdrawResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                txHash:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{64}$'
+                assets:
+                  type: string
+                compoundEarnings:
+                  type: string
+                  description: Earnings from compounding
+                timestamp:
+                  type: number
+
+    SYVaultBalanceResponse:
       allOf:
         - $ref: '#/components/schemas/StandardResponse'
         - type: object
@@ -1250,67 +1731,146 @@ components:
                 address:
                   type: string
                   pattern: '^0x[a-fA-F0-9]{40}$'
-                  description: User wallet address
-                standardizedYield:
+                balance:
                   type: object
-                  description: StandardizedYield vault balance (Bob's multi-strategy)
-                  properties:
-                    shares:
-                      type: string
-                      description: User's SY vault shares
-                      example: "1000.5"
-                    underlyingAssets:
-                      type: string
-                      description: Underlying USDT value of shares
-                      example: "1050.75"
-                    strategies:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          name:
-                            type: string
-                            example: "MockLendingStrategy"
-                          allocation:
-                            type: number
-                            example: 40
-                          apy:
-                            type: string
-                            example: "10.0"
-                    blendedAPY:
-                      type: string
-                      description: Weighted average APY across strategies
-                      example: "9.5"
-                autoCompoundVault:
-                  type: object
-                  description: AutoCompoundVault balance (Alice's single-strategy)
-                  properties:
-                    shares:
-                      type: string
-                      description: User's AutoCompound vault shares
-                      example: "950.25"
-                    underlyingAssets:
-                      type: string
-                      description: Underlying USDT value with compounding
-                      example: "1025.50"
-                    pricePerShare:
-                      type: string
-                      description: Current share price (grows via compounding)
-                      example: "1.078"
-                    strategy:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                          example: "MockStakingStrategy"
-                        apy:
-                          type: string
-                          example: "8.0"
-                        compoundedAPY:
-                          type: string
-                          description: Effective APY with compounding
-                          example: "10.5"
-                totalValue:
+                  description: Vault balance details
+                timestamp:
+                  type: number
+
+    AutoCompoundBalanceResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                address:
                   type: string
-                  description: Combined value across both vault types
-                  example: "2076.25"
+                  pattern: '^0x[a-fA-F0-9]{40}$'
+                balance:
+                  type: object
+                  properties:
+                    shares:
+                      type: string
+                    underlyingAssets:
+                      type: string
+                    sharePrice:
+                      type: string
+                timestamp:
+                  type: number
+
+    VaultAPYResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                apy:
+                  type: string
+                  example: "9.5"
+                totalAssets:
+                  type: string
+                totalSupply:
+                  type: string
+                timestamp:
+                  type: number
+
+    VaultStrategiesResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                strategies:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      allocation:
+                        type: number
+                      apy:
+                        type: string
+                totalStrategies:
+                  type: integer
+                timestamp:
+                  type: number
+
+    AutoCompoundInfoResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                totalAssets:
+                  type: string
+                totalSupply:
+                  type: string
+                apy:
+                  type: number
+                  example: 8.5
+                riskLevel:
+                  type: integer
+                  example: 3
+                compoundingRate:
+                  type: string
+                  example: "24"
+                lastCompound:
+                  type: number
+
+    SignatureResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                senderRawTransaction:
+                  type: string
+                  description: Signed transaction data
+                transactionDetails:
+                  type: object
+                  properties:
+                    type:
+                      type: number
+                    from:
+                      type: string
+                    to:
+                      type: string
+                    gasLimit:
+                      type: string
+                    gasPrice:
+                      type: string
+                    nonce:
+                      type: number
+                    dataLength:
+                      type: number
+
+    TransactionResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                transactionHash:
+                  type: string
+                  pattern: '^0x[a-fA-F0-9]{64}$'
+                blockNumber:
+                  type: number
+                gasUsed:
+                  type: string
+                message:
+                  type: string
+                  example: "Transaction executed successfully"
+
