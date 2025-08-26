@@ -46,11 +46,10 @@ router.post('/deposit', async (req: Request, res: Response) => {
       });
     }
 
-    // Build deposit function call data: deposit(uint256 assets, address receiver)
-    const depositSelector = '0x6e553f65'; // deposit(uint256,address)
+    // Build deposit function call data: deposit(uint256 _amount) - AutoCompound vault direct
+    const depositSelector = '0xb6b55f25'; // deposit(uint256) - AutoCompound vault direct function
     const paddedAmount = BigInt(amount).toString(16).padStart(64, '0');
-    const paddedReceiver = userAddress.slice(2).padStart(64, '0');
-    const depositData = depositSelector + paddedAmount + paddedReceiver;
+    const depositData = depositSelector + paddedAmount;
 
     // Create fee-delegated transaction
     const txRequest = {
@@ -213,6 +212,24 @@ router.post('/execute', async (req: Request, res: Response) => {
     logger.info('🚀 Executing fee-delegated transaction via API');
 
     const result = await feeDelegationService.executeFeeDelegatedTransaction(senderRawTransaction);
+
+    // Check if the transaction actually succeeded
+    if (!result.success) {
+      logger.error('❌ Fee-delegated transaction failed on-chain', {
+        error: result.error,
+        transactionHash: result.transactionHash,
+        blockNumber: result.blockNumber
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'Transaction failed on-chain',
+        data: {
+          transactionHash: result.transactionHash,
+          blockNumber: result.blockNumber
+        }
+      });
+    }
 
     logger.info('✅ Fee-delegated transaction executed successfully', {
       transactionHash: result.transactionHash,

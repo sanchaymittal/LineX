@@ -10,6 +10,7 @@ import { walletService } from '../../services/wallet';
 import { feeDelegationService } from '../../services/blockchain/feeDelegationService';
 import { asyncHandler } from '../middleware/errorHandler';
 import { createValidationError } from '../middleware/errorHandler';
+import { CONTRACT_CONSTANTS } from '../../types/contracts';
 import logger from '../../utils/logger';
 
 const router: Router = Router();
@@ -238,7 +239,7 @@ router.post('/approve', asyncHandler(async (req: Request, res: Response) => {
           gasPayerAddress: feeDelegationService.getGasPayerAddress(),
           message: 'Manual approval required - user must provide pre-signed fee-delegated transaction',
           approveCallData: {
-            to: '0x09D48C3b2DE92DDfD26ebac28324F1226da1f400', // Contract address
+            to: CONTRACT_CONSTANTS.ADDRESS, // Use centralized contract address
             method: 'approve',
             params: [
               spender, // Use dynamic spender address
