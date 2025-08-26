@@ -8,6 +8,7 @@ import { KaiaProviderManager } from '../blockchain/provider';
 import { FeeDelegationService } from '../blockchain/feeDelegationService';
 import { RedisService } from '../redis/redisService';
 import logger from '../../utils/logger';
+import { getContractInstance, CONTRACT_ADDRESSES } from '../../constants/contractAbis';
 
 export interface SplitParams {
   user: string;
@@ -15,6 +16,7 @@ export interface SplitParams {
   signature: string;
   nonce: number;
   deadline: number;
+  senderRawTransaction?: string; // User's signed fee-delegated transaction
 }
 
 export interface RecombineParams {
@@ -24,6 +26,7 @@ export interface RecombineParams {
   signature: string;
   nonce: number;
   deadline: number;
+  senderRawTransaction?: string; // User's signed fee-delegated transaction
 }
 
 export interface UserPositions {
@@ -61,9 +64,9 @@ export class PYTNYTService {
     this.kaiaProvider = kaiaProvider;
     this.feeDelegation = feeDelegation;
     this.redis = redis;
-    this.orchestratorAddress = process.env.ORCHESTRATOR_ADDRESS || '';
-    this.pytTokenAddress = process.env.PYT_TOKEN_ADDRESS || '';
-    this.nytTokenAddress = process.env.NYT_TOKEN_ADDRESS || '';
+    this.orchestratorAddress = CONTRACT_ADDRESSES.YIELD_ORCHESTRATOR;
+    this.pytTokenAddress = CONTRACT_ADDRESSES.PYT_TOKEN;
+    this.nytTokenAddress = CONTRACT_ADDRESSES.NYT_TOKEN;
   }
 
   /**
@@ -77,14 +80,14 @@ export class PYTNYTService {
       await this.verifySplitSignature(params);
 
       // Execute gasless splitting via fee delegation
-      const txHash = await this.feeDelegation.executeSplit({
-        user: params.user,
-        syShares: params.syShares,
-        orchestrator: this.orchestratorAddress,
-        signature: params.signature,
-        nonce: params.nonce,
-        deadline: params.deadline
-      });
+      if (!params.senderRawTransaction) {
+        throw new Error('senderRawTransaction is required for fee-delegated splits');
+      }
+      const result = await this.feeDelegation.executeFeeDelegatedTransaction(params.senderRawTransaction);
+      if (!result.success) {
+        throw new Error(result.error || 'Split transaction failed');
+      }
+      const txHash = result.transactionHash!;
 
       // Get minted PYT/NYT amounts from transaction receipt
       const { pytAmount, nytAmount } = await this.getSplitAmounts(txHash);
@@ -112,15 +115,14 @@ export class PYTNYTService {
       await this.verifyRecombineSignature(params);
 
       // Execute gasless recombination via fee delegation
-      const txHash = await this.feeDelegation.executeRecombine({
-        user: params.user,
-        pytAmount: params.pytAmount,
-        nytAmount: params.nytAmount,
-        orchestrator: this.orchestratorAddress,
-        signature: params.signature,
-        nonce: params.nonce,
-        deadline: params.deadline
-      });
+      if (!params.senderRawTransaction) {
+        throw new Error('senderRawTransaction is required for fee-delegated recombines');
+      }
+      const result = await this.feeDelegation.executeFeeDelegatedTransaction(params.senderRawTransaction);
+      if (!result.success) {
+        throw new Error(result.error || 'Recombine transaction failed');
+      }
+      const txHash = result.transactionHash!;
 
       // Get recovered SY shares from transaction receipt
       const syShares = await this.getRecombinedShares(txHash);
@@ -145,7 +147,7 @@ export class PYTNYTService {
       // Get from Redis cache first
       const cached = await this.redis.get(`defi:positions:${userAddress}`);
       if (cached) {
-        const position = JSON.parse(cached);
+        const position = JSON.parse(cached as string);
         
         // Refresh with on-chain data if cache is old (> 5 minutes)
         if (Date.now() - position.lastUpdate < 300000) {
@@ -157,38 +159,28 @@ export class PYTNYTService {
       const provider = await this.kaiaProvider.getProvider();
       
       const [pytContract, nytContract, orchestratorContract] = [
-        new Contract(this.pytTokenAddress, [
-          'function balanceOf(address) view returns (uint256)',
-          'function pendingYield(address) view returns (uint256)'
-        ], provider),
-        new Contract(this.nytTokenAddress, [
-          'function balanceOf(address) view returns (uint256)',
-          'function getUserInfo(address) view returns (uint256, uint256, uint256, bool, bool, uint256)'
-        ], provider),
-        new Contract(this.orchestratorAddress, [
-          'function getUserPosition(address) view returns (uint256, uint256, uint256, uint256, bool)'
-        ], provider)
+        getContractInstance('PYT_TOKEN', provider as any) as any,
+        getContractInstance('NYT_TOKEN', provider as any) as any,
+        getContractInstance('YIELD_ORCHESTRATOR', provider as any) as any
       ];
 
-      const [pytBalance, nytBalance] = await Promise.all([
+      const [pytBalance, nytBalance, pytYieldAccrued, nytPrincipal, nytMaturity, nytMatured] = await Promise.all([
         pytContract.balanceOf(userAddress),
-        nytContract.balanceOf(userAddress)
+        nytContract.balanceOf(userAddress),
+        pytContract.yieldAccrued(userAddress),
+        nytContract.principalAmount(userAddress),
+        nytContract.maturityTimestamp(),
+        nytContract.isMatured()
       ]);
-
-      // Get NYT info (maturity, principal protection, etc.)
-      const [, principal, maturity, protected, , currentValue] = await nytContract.getUserInfo(userAddress);
-
-      // Get orchestrator position summary
-      const [, , , principalProtected, liquidationProtection] = await orchestratorContract.getUserPosition(userAddress);
 
       const positions: UserPositions = {
         syShares: '0', // This would come from separate SY vault query
         pytBalance: pytBalance.toString(),
         nytBalance: nytBalance.toString(),
         portfolioTokens: '0', // Portfolio tokens from YieldSet
-        nytMaturity: Number(maturity),
-        principalProtected: principalProtected.toString(),
-        liquidationProtection
+        nytMaturity: Number(nytMaturity),
+        principalProtected: nytPrincipal.toString(),
+        liquidationProtection: false // Default value since we can't get this from current ABI
       };
 
       // Cache the result
@@ -214,25 +206,20 @@ export class PYTNYTService {
       const cacheKey = `defi:forecast:${userAddress}:${timeframeDays}`;
       const cached = await this.redis.get(cacheKey);
       if (cached) {
-        return JSON.parse(cached);
+        return JSON.parse(cached as string);
       }
 
-      const provider = await this.kaiaProvider.getProvider();
-      const orchestratorContract = new Contract(
-        this.orchestratorAddress,
-        ['function getYieldForecast(uint256) view returns (uint256, uint256, uint256, uint256)'],
-        provider
-      );
-
-      const timeframeSeconds = timeframeDays * 24 * 60 * 60;
-      const [projectedYield, confidence, minExpected, maxExpected] = 
-        await orchestratorContract.getYieldForecast(timeframeSeconds);
+      // Mock yield forecast since getYieldForecast doesn't exist in actual contract
+      // In production, this would use historical data analysis or external APIs
+      const baseYieldRate = 5.0; // 5% annual base rate
+      const dailyRate = baseYieldRate / 365;
+      const projectedYield = (1000 * dailyRate * timeframeDays).toString(); // Mock calculation
 
       const forecast: YieldForecast = {
-        projectedPYTYield: projectedYield.toString(),
-        confidenceScore: Number(confidence),
-        minExpected: minExpected.toString(),
-        maxExpected: maxExpected.toString(),
+        projectedPYTYield: projectedYield,
+        confidenceScore: 75, // Mock confidence score
+        minExpected: (parseFloat(projectedYield) * 0.8).toString(), // Mock 80% of projected
+        maxExpected: (parseFloat(projectedYield) * 1.2).toString(), // Mock 120% of projected
         timeframe: timeframeDays
       };
 
@@ -338,17 +325,17 @@ export class PYTNYTService {
       const receipt = await provider.getTransactionReceipt(txHash);
       
       const orchestratorInterface = new Interface([
-        'event YieldSplit(address indexed user, uint256 syShares, uint256 pytAmount, uint256 nytAmount)'
+        'event SharesSplit(address indexed user, uint256 syShares, uint256 pytMinted, uint256 nytMinted, uint256 timestamp)'
       ]);
 
       for (const log of receipt.logs) {
         try {
           if (log.address.toLowerCase() === this.orchestratorAddress.toLowerCase()) {
             const parsed = orchestratorInterface.parseLog(log);
-            if (parsed.name === 'YieldSplit') {
+            if (parsed && parsed.name === 'SharesSplit') {
               return {
-                pytAmount: parsed.args.pytAmount.toString(),
-                nytAmount: parsed.args.nytAmount.toString()
+                pytAmount: parsed.args?.pytMinted?.toString() || '0',
+                nytAmount: parsed.args?.nytMinted?.toString() || '0'
               };
             }
           }
@@ -357,7 +344,7 @@ export class PYTNYTService {
         }
       }
 
-      throw new Error('YieldSplit event not found in transaction');
+      throw new Error('SharesSplit event not found in transaction');
     } catch (error) {
       logger.error(`Failed to get split amounts from tx ${txHash}:`, error);
       throw error;
@@ -373,15 +360,15 @@ export class PYTNYTService {
       const receipt = await provider.getTransactionReceipt(txHash);
       
       const orchestratorInterface = new Interface([
-        'event YieldRecombined(address indexed user, uint256 pytAmount, uint256 nytAmount, uint256 syShares)'
+        'event SharesRecombined(address indexed user, uint256 pytBurned, uint256 nytBurned, uint256 syShares, uint256 timestamp)'
       ]);
 
       for (const log of receipt.logs) {
         try {
           if (log.address.toLowerCase() === this.orchestratorAddress.toLowerCase()) {
             const parsed = orchestratorInterface.parseLog(log);
-            if (parsed.name === 'YieldRecombined') {
-              return parsed.args.syShares.toString();
+            if (parsed && parsed.name === 'SharesRecombined') {
+              return parsed.args?.syShares?.toString() || '0';
             }
           }
         } catch (e) {
@@ -389,7 +376,7 @@ export class PYTNYTService {
         }
       }
 
-      throw new Error('YieldRecombined event not found in transaction');
+      throw new Error('SharesRecombined event not found in transaction');
     } catch (error) {
       logger.error(`Failed to get recombined shares from tx ${txHash}:`, error);
       throw error;
@@ -408,7 +395,7 @@ export class PYTNYTService {
     try {
       const key = `defi:positions:${userAddress}`;
       const existing = await this.redis.get(key);
-      const position = existing ? JSON.parse(existing) : {
+      const position = existing ? JSON.parse(existing as string) : {
         syShares: '0',
         pytBalance: '0',
         nytBalance: '0',
@@ -421,9 +408,9 @@ export class PYTNYTService {
       const currentPYT = BigInt(position.pytBalance || '0');
       const currentNYT = BigInt(position.nytBalance || '0');
 
-      position.syShares = (currentSY - syShares).toString();
-      position.pytBalance = (currentPYT + pytAmount).toString();
-      position.nytBalance = (currentNYT + nytAmount).toString();
+      position.syShares = (currentSY - BigInt(syShares)).toString();
+      position.pytBalance = (currentPYT + BigInt(pytAmount)).toString();
+      position.nytBalance = (currentNYT + BigInt(nytAmount)).toString();
       position.lastUpdate = Date.now();
 
       await this.redis.set(key, JSON.stringify(position));
@@ -445,7 +432,7 @@ export class PYTNYTService {
     try {
       const key = `defi:positions:${userAddress}`;
       const existing = await this.redis.get(key);
-      const position = existing ? JSON.parse(existing) : {
+      const position = existing ? JSON.parse(existing as string) : {
         syShares: '0',
         pytBalance: '0',
         nytBalance: '0',
@@ -458,9 +445,9 @@ export class PYTNYTService {
       const currentPYT = BigInt(position.pytBalance || '0');
       const currentNYT = BigInt(position.nytBalance || '0');
 
-      position.syShares = (currentSY + syShares).toString();
-      position.pytBalance = (currentPYT - pytAmount).toString();
-      position.nytBalance = (currentNYT - nytAmount).toString();
+      position.syShares = (currentSY + BigInt(syShares)).toString();
+      position.pytBalance = (currentPYT - BigInt(pytAmount)).toString();
+      position.nytBalance = (currentNYT - BigInt(nytAmount)).toString();
       position.lastUpdate = Date.now();
 
       await this.redis.set(key, JSON.stringify(position));
