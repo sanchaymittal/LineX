@@ -26,7 +26,7 @@ BOB_PRIVATE_KEY="0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b786
 BOB_ADDRESS="$BOB_ADDRESS"
 VAULT_ADDRESS="$STANDARDIZED_YIELD"           # StandardizedYield Vault
 USDT_ADDRESS="$TEST_USDT"                     # TestUSDT Contract
-TEST_AMOUNT="100000000"  # 100 USDT (6 decimals)
+TEST_AMOUNT="200000000"  # 200 USDT (6 decimals)
 SHARES_TO_WITHDRAW="50000000"  # 50 SY shares (6 decimals)
 
 echo "Bob's wallet address: $BOB_ADDRESS"
@@ -38,6 +38,16 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+# Function to display transaction with explorer link
+show_transaction_link() {
+    local tx_hash=$1
+    local description=$2
+    echo -e "${GREEN}🔗 Transaction: $description${NC}"
+    echo -e "${BLUE}   📍 Hash: $tx_hash${NC}"
+    echo -e "${BLUE}   🌐 Explorer: https://kairos.kaiascan.io/tx/$tx_hash${NC}"
+    echo ""
+}
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}🧪 E2E TEST: Bob's StandardizedYield Journey${NC}"  
@@ -154,6 +164,12 @@ if [ "$execute_success" != "true" ]; then
 fi
 
 echo -e "${GREEN}✅ Approval transaction executed successfully${NC}"
+
+# Extract and display transaction hash with explorer link
+approval_tx_hash=$(echo "$execute_response" | jq -r '.data.transactionHash // ""')
+if [ "$approval_tx_hash" != "" ] && [ "$approval_tx_hash" != "null" ]; then
+    show_transaction_link "$approval_tx_hash" "USDT Approval for SY Vault"
+fi
 echo ""
 
 # Test 7: Bob Deposits to StandardizedYield Vault
@@ -206,6 +222,12 @@ if [ "$deposit_execute_success" != "true" ]; then
 fi
 
 echo -e "${GREEN}✅ Deposit transaction executed successfully${NC}"
+
+# Extract and display transaction hash with explorer link
+deposit_tx_hash=$(echo "$deposit_execute_response" | jq -r '.data.transactionHash // ""')
+if [ "$deposit_tx_hash" != "" ] && [ "$deposit_tx_hash" != "null" ]; then
+    show_transaction_link "$deposit_tx_hash" "SY Vault Deposit (200 USDT)"
+fi
 # Test 8: Check Bob's SY Vault Balance After Deposit
 echo -e "${YELLOW}📍 STEP 9: Verify SY Vault Position After Deposit${NC}"
 make_api_call "GET" "/api/v1/defi/vault/balance/$BOB_ADDRESS" "" "Getting Bob's SY vault balance after deposit"

@@ -44,6 +44,16 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Function to display transaction with explorer link
+show_transaction_link() {
+    local tx_hash=$1
+    local description=$2
+    echo -e "${GREEN}🔗 Transaction: $description${NC}"
+    echo -e "${BLUE}   📍 Hash: $tx_hash${NC}"
+    echo -e "${BLUE}   🌐 Explorer: https://kairos.kaiascan.io/tx/$tx_hash${NC}"
+    echo ""
+}
+
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}🧪 E2E TEST: Alice's AutoCompound Journey${NC}"  
 echo -e "${BLUE}========================================${NC}"
@@ -157,6 +167,12 @@ if [ "$execute_success" != "true" ]; then
 fi
 
 echo -e "${GREEN}✅ Approval transaction executed successfully${NC}"
+
+# Extract and display transaction hash with explorer link
+approval_tx_hash=$(echo "$execute_response" | jq -r '.data.transactionHash // ""')
+if [ "$approval_tx_hash" != "" ] && [ "$approval_tx_hash" != "null" ]; then
+    show_transaction_link "$approval_tx_hash" "USDT Approval for AutoCompound Vault"
+fi
 echo ""
 
 # Test 7: Alice Deposits to AutoCompound Vault
@@ -172,8 +188,8 @@ deposit_sig_data='{
 }'
 
 echo -e "${BLUE}🔐 Generating AutoCompound vault deposit signature (direct)${NC}"
-echo "   → POST /api/v1/signatures/deposit"
-deposit_response=$(curl -s -X POST "$API_BASE/api/v1/signatures/deposit" \
+echo "   → POST /api/v1/signatures/deposit/autocompound"
+deposit_response=$(curl -s -X POST "$API_BASE/api/v1/signatures/deposit/autocompound" \
                   -H "Content-Type: application/json" \
                   -d "$deposit_sig_data" | jq .)
 
@@ -209,6 +225,12 @@ if [ "$deposit_execute_success" != "true" ]; then
 fi
 
 echo -e "${GREEN}✅ Deposit transaction executed successfully${NC}"
+
+# Extract and display transaction hash with explorer link
+deposit_tx_hash=$(echo "$deposit_execute_response" | jq -r '.data.transactionHash // ""')
+if [ "$deposit_tx_hash" != "" ] && [ "$deposit_tx_hash" != "null" ]; then
+    show_transaction_link "$deposit_tx_hash" "AutoCompound Vault Deposit (100 USDT)"
+fi
 
 # Test 8: Check Alice's AutoCompound Balance After Deposit
 echo -e "${YELLOW}📍 STEP 8: Verify AutoCompound Position After Deposit${NC}"
