@@ -8,15 +8,11 @@ import { FeeDelegationService } from '../blockchain/feeDelegationService';
 import { RedisService } from '../redis/redisService';
 import { SYVaultService } from './syVaultService';
 import { AutoCompoundVaultService } from './autoCompoundVaultService';
-import { YieldSetService } from './yieldSetService';
-import { PYTNYTService } from './pytNytService';
 import logger from '../../utils/logger';
 
 export interface DeFiServices {
   standardizedYieldService: SYVaultService;
   autoCompoundVaultService: AutoCompoundVaultService;
-  yieldSetService: YieldSetService;
-  pytNytOrchestratorService: PYTNYTService;
 }
 
 /**
@@ -38,16 +34,12 @@ export async function initializeDeFiServices(): Promise<DeFiServices> {
     // Initialize DeFi services - 1:1 mapping to contracts
     const standardizedYieldService = new SYVaultService(kaiaProvider, feeDelegation, redisService);
     const autoCompoundVaultService = new AutoCompoundVaultService(kaiaProvider, feeDelegation, redisService);
-    const yieldSetService = new YieldSetService(kaiaProvider, feeDelegation, redisService);
-    const pytNytOrchestratorService = new PYTNYTService(kaiaProvider, feeDelegation, redisService);
 
     logger.info('✅ All DeFi services initialized successfully');
 
     return {
       standardizedYieldService,
-      autoCompoundVaultService,
-      yieldSetService,
-      pytNytOrchestratorService
+      autoCompoundVaultService
     };
 
   } catch (error) {
@@ -63,9 +55,7 @@ export function attachDeFiServices(app: any, services: DeFiServices): void {
   // Create defiServices object with the correct property names
   app.locals.defiServices = {
     vault: services.standardizedYieldService,
-    autoCompoundVault: services.autoCompoundVaultService,
-    yieldSet: services.yieldSetService,
-    pytNytOrchestrator: services.pytNytOrchestratorService
+    autoCompoundVault: services.autoCompoundVaultService
   };
 
   // Also keep the original services for backward compatibility
