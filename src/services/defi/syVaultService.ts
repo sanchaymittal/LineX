@@ -7,6 +7,7 @@ import { Contract, formatUnits, verifyTypedData, Interface } from 'ethers';
 import { KaiaProviderManager } from '../blockchain/provider';
 import { FeeDelegationService } from '../blockchain/feeDelegationService';
 import { RedisService } from '../redis/redisService';
+import { getContractInstance, CONTRACT_ADDRESSES, SY_VAULT_ABI } from '../../constants/contractAbis';
 import logger from '../../utils/logger';
 
 export interface SYDepositParams {
@@ -15,6 +16,7 @@ export interface SYDepositParams {
   signature: string;
   nonce: number;
   deadline: number;
+  senderRawTransaction?: string; // User's signed fee-delegated transaction
 }
 
 export interface SYWithdrawParams {
@@ -23,6 +25,7 @@ export interface SYWithdrawParams {
   signature: string;
   nonce: number;
   deadline: number;
+  senderRawTransaction?: string; // User's signed fee-delegated transaction
 }
 
 export interface SYBalance {
@@ -56,7 +59,7 @@ export class SYVaultService {
     this.kaiaProvider = kaiaProvider;
     this.feeDelegation = feeDelegation;
     this.redis = redis;
-    this.syVaultAddress = process.env.SY_VAULT_ADDRESS || '';
+    this.syVaultAddress = CONTRACT_ADDRESSES.SY_VAULT;
   }
 
   /**
@@ -70,14 +73,16 @@ export class SYVaultService {
       await this.verifyDepositSignature(params);
 
       // Execute gasless deposit via fee delegation
-      const txHash = await this.feeDelegation.executeDeposit({
-        user: params.user,
-        amount: params.amount,
-        vault: this.syVaultAddress,
-        signature: params.signature,
-        nonce: params.nonce,
-        deadline: params.deadline
-      });
+      // User must provide pre-signed fee-delegated transaction
+      if (!params.senderRawTransaction) {
+        throw new Error('senderRawTransaction is required for fee-delegated deposits');
+      }
+
+      const result = await this.feeDelegation.executeFeeDelegatedTransaction(params.senderRawTransaction);
+      if (!result.success) {
+        throw new Error(result.error || 'Deposit transaction failed');
+      }
+      const txHash = result.transactionHash!;
 
       // Get shares minted from transaction receipt
       const shares = await this.getDepositedShares(txHash);
@@ -105,14 +110,16 @@ export class SYVaultService {
       await this.verifyWithdrawSignature(params);
 
       // Execute gasless withdrawal via fee delegation
-      const txHash = await this.feeDelegation.executeWithdraw({
-        user: params.user,
-        shares: params.shares,
-        vault: this.syVaultAddress,
-        signature: params.signature,
-        nonce: params.nonce,
-        deadline: params.deadline
-      });
+      // User must provide pre-signed fee-delegated transaction
+      if (!params.senderRawTransaction) {
+        throw new Error('senderRawTransaction is required for fee-delegated withdrawals');
+      }
+
+      const result = await this.feeDelegation.executeFeeDelegatedTransaction(params.senderRawTransaction);
+      if (!result.success) {
+        throw new Error(result.error || 'Withdrawal transaction failed');
+      }
+      const txHash = result.transactionHash!;
 
       // Get assets withdrawn from transaction receipt
       const assets = await this.getWithdrawnAssets(txHash);
@@ -135,17 +142,12 @@ export class SYVaultService {
   async getBalance(userAddress: string): Promise<SYBalance> {
     try {
       const provider = await this.kaiaProvider.getProvider();
-      const syVaultContract = new Contract(
-        this.syVaultAddress,
-        ['function balanceOf(address) view returns (uint256)', 
-         'function convertToAssets(uint256) view returns (uint256)',
-         'function convertToShares(uint256) view returns (uint256)'],
-        provider
-      );
+      const syVaultContract = getContractInstance('SY_VAULT', provider as any) as any;
 
       const syShares = await syVaultContract.balanceOf(userAddress);
       const underlyingAssets = await syVaultContract.convertToAssets(syShares);
-      const sharePrice = syShares > 0n ? (underlyingAssets * 1000000000000000000n) / syShares : 1000000000000000000n;
+      // SY vault uses 6 decimals, not 18
+      const sharePrice = syShares > 0n ? (underlyingAssets * 1000000n) / syShares : 1000000n;
 
       return {
         syShares: syShares.toString(),
@@ -167,18 +169,11 @@ export class SYVaultService {
       // Check Redis cache first (5-minute TTL)
       const cached = await this.redis.get('defi:sy:vault:info');
       if (cached) {
-        return JSON.parse(cached);
+        return JSON.parse(cached as string) as SYVaultInfo;
       }
 
       const provider = await this.kaiaProvider.getProvider();
-      const syVaultContract = new Contract(
-        this.syVaultAddress,
-        ['function totalAssets() view returns (uint256)',
-         'function totalSupply() view returns (uint256)',
-         'function yieldRate() view returns (uint256)',
-         'function getVaultStats() view returns (uint256, uint256, uint256, uint256)'],
-        provider
-      );
+      const syVaultContract = getContractInstance('SY_VAULT', provider as any) as any;
 
       const [totalAssets, totalSupply, yieldRate] = await Promise.all([
         syVaultContract.totalAssets(),
@@ -302,14 +297,14 @@ export class SYVaultService {
       
       // Parse Deposit event from SY vault contract
       const syVaultInterface = new Interface([
-        'event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares)'
+        'event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)'
       ]);
 
       for (const log of receipt.logs) {
         try {
           if (log.address.toLowerCase() === this.syVaultAddress.toLowerCase()) {
             const parsed = syVaultInterface.parseLog(log);
-            if (parsed.name === 'Deposit') {
+            if (parsed && parsed.name === 'Deposit') {
               return parsed.args.shares.toString();
             }
           }
@@ -335,14 +330,14 @@ export class SYVaultService {
       
       // Parse Withdraw event from SY vault contract
       const syVaultInterface = new Interface([
-        'event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)'
+        'event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)'
       ]);
 
       for (const log of receipt.logs) {
         try {
           if (log.address.toLowerCase() === this.syVaultAddress.toLowerCase()) {
             const parsed = syVaultInterface.parseLog(log);
-            if (parsed.name === 'Withdraw') {
+            if (parsed && parsed.name === 'Withdraw') {
               return parsed.args.assets.toString();
             }
           }
@@ -365,7 +360,7 @@ export class SYVaultService {
     try {
       const key = `defi:positions:${userAddress}`;
       const existing = await this.redis.get(key);
-      const position = existing ? JSON.parse(existing) : {
+      const position = existing ? JSON.parse(existing as string) as any : {
         syShares: '0',
         pytBalance: '0',
         nytBalance: '0',
