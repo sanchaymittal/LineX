@@ -7,20 +7,16 @@ import { KaiaProviderManager } from '../blockchain/provider';
 import { FeeDelegationService } from '../blockchain/feeDelegationService';
 import { RedisService } from '../redis/redisService';
 import { SYVaultService } from './syVaultService';
+import { AutoCompoundVaultService } from './autoCompoundVaultService';
+import { YieldSetService } from './yieldSetService';
 import { PYTNYTService } from './pytNytService';
-import { YieldService } from './yieldService';
-import { PortfolioService } from './portfolioService';
-import { StrategyService } from './strategyService';
-import { AnalyticsService } from './analyticsService';
 import logger from '../../utils/logger';
 
 export interface DeFiServices {
-  syVaultService: SYVaultService;
-  pytNytService: PYTNYTService;
-  yieldService: YieldService;
-  portfolioService: PortfolioService;
-  strategyService: StrategyService;
-  analyticsService: AnalyticsService;
+  standardizedYieldService: SYVaultService;
+  autoCompoundVaultService: AutoCompoundVaultService;
+  yieldSetService: YieldSetService;
+  pytNytOrchestratorService: PYTNYTService;
 }
 
 /**
@@ -33,29 +29,25 @@ export async function initializeDeFiServices(): Promise<DeFiServices> {
     // Initialize core dependencies
     const kaiaProvider = new KaiaProviderManager();
     const redisService = new RedisService();
-    const feeDelegation = new FeeDelegationService(kaiaProvider);
+    const feeDelegation = new FeeDelegationService();
 
     // Connect to Kaia provider
     await kaiaProvider.connect();
     logger.info('✅ Kaia provider connected for DeFi services');
 
-    // Initialize DeFi services
-    const syVaultService = new SYVaultService(kaiaProvider, feeDelegation, redisService);
-    const pytNytService = new PYTNYTService(kaiaProvider, feeDelegation, redisService);
-    const yieldService = new YieldService(kaiaProvider, feeDelegation, redisService);
-    const portfolioService = new PortfolioService(kaiaProvider, feeDelegation, redisService);
-    const strategyService = new StrategyService(kaiaProvider, redisService);
-    const analyticsService = new AnalyticsService(kaiaProvider, redisService);
+    // Initialize DeFi services - 1:1 mapping to contracts
+    const standardizedYieldService = new SYVaultService(kaiaProvider, feeDelegation, redisService);
+    const autoCompoundVaultService = new AutoCompoundVaultService(kaiaProvider, feeDelegation, redisService);
+    const yieldSetService = new YieldSetService(kaiaProvider, feeDelegation, redisService);
+    const pytNytOrchestratorService = new PYTNYTService(kaiaProvider, feeDelegation, redisService);
 
     logger.info('✅ All DeFi services initialized successfully');
 
     return {
-      syVaultService,
-      pytNytService,
-      yieldService,
-      portfolioService,
-      strategyService,
-      analyticsService
+      standardizedYieldService,
+      autoCompoundVaultService,
+      yieldSetService,
+      pytNytOrchestratorService
     };
 
   } catch (error) {
@@ -74,6 +66,4 @@ export function attachDeFiServices(app: any, services: DeFiServices): void {
 
   // Attach each service to app.locals for route access
   Object.assign(app.locals.services, services);
-
-  logger.info('✅ DeFi services attached to Express app');
 }
