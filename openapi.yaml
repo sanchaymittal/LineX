@@ -699,6 +699,251 @@ paths:
               schema:
                 $ref: '#/components/schemas/StandardResponse'
 
+  # New DeFi Discovery & Management Endpoints
+  /api/v1/defi/vaults:
+    get:
+      tags:
+        - DeFi
+      summary: Get All Available Vaults
+      description: |
+        Get all available vaults with filtering options. Returns both StandardizedYield 
+        and AutoCompound vaults with their current metrics.
+      operationId: getAllVaults
+      parameters:
+        - name: minApy
+          in: query
+          required: false
+          description: Minimum APY filter
+          schema:
+            type: number
+            format: float
+        - name: maxRisk
+          in: query
+          required: false
+          description: Maximum risk level (1-5)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+        - name: isActive
+          in: query
+          required: false
+          description: Filter by active status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of available vaults
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultsListResponse'
+
+  /api/v1/defi/vaults/{address}/metrics:
+    get:
+      tags:
+        - DeFi
+      summary: Get Vault Metrics
+      description: Get detailed metrics and performance data for a specific vault
+      operationId: getVaultMetrics
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: Vault contract address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+      responses:
+        '200':
+          description: Vault metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VaultMetricsResponse'
+        '404':
+          description: Vault not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/defi/portfolio/{userAddress}:
+    get:
+      tags:
+        - DeFi
+      summary: Get User Portfolio
+      description: |
+        Get aggregated portfolio summary across all vaults for a user. 
+        Includes positions, performance metrics, and risk distribution.
+      operationId: getUserPortfolio
+      parameters:
+        - name: userAddress
+          in: path
+          required: true
+          description: User wallet address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+      responses:
+        '200':
+          description: User portfolio summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioResponse'
+
+  /api/v1/defi/positions/{userAddress}:
+    get:
+      tags:
+        - DeFi
+      summary: Get User Positions
+      description: |
+        Get detailed individual positions for a user across all vaults.
+        Includes entry prices, current values, and unrealized gains.
+      operationId: getUserPositions
+      parameters:
+        - name: userAddress
+          in: path
+          required: true
+          description: User wallet address
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+      responses:
+        '200':
+          description: User positions details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionsResponse'
+
+  /api/v1/defi/strategies:
+    get:
+      tags:
+        - DeFi
+      summary: Get Available Strategies
+      description: |
+        Get all available yield strategies across both vault types.
+        Includes APY, risk levels, and allocation details.
+      operationId: getStrategies
+      responses:
+        '200':
+          description: List of available strategies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategiesResponse'
+
+  /api/v1/defi/strategies/comparison:
+    get:
+      tags:
+        - DeFi
+      summary: Compare Vault Strategies
+      description: |
+        Compare StandardizedYield vs AutoCompound strategies with detailed
+        risk/reward analysis and performance comparisons.
+      operationId: compareStrategies
+      responses:
+        '200':
+          description: Strategy comparison analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyComparisonResponse'
+
+  /api/v1/defi/vault/deposit/preview:
+    post:
+      tags:
+        - DeFi
+      summary: Preview SY Vault Deposit
+      description: |
+        Preview deposit to StandardizedYield vault. Calculates expected shares,
+        fees, gas costs, and provides risk assessment.
+      operationId: previewSYDeposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepositPreviewRequest'
+      responses:
+        '200':
+          description: Deposit preview calculations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepositPreviewResponse'
+
+  /api/v1/defi/vault/withdraw/preview:
+    post:
+      tags:
+        - DeFi
+      summary: Preview SY Vault Withdrawal
+      description: |
+        Preview withdrawal from StandardizedYield vault. Calculates expected assets,
+        fees, and validates user balance.
+      operationId: previewSYWithdrawal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawPreviewRequest'
+      responses:
+        '200':
+          description: Withdrawal preview calculations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WithdrawPreviewResponse'
+
+  /api/v1/defi/autocompound/deposit/preview:
+    post:
+      tags:
+        - DeFi
+      summary: Preview AutoCompound Deposit
+      description: |
+        Preview deposit to AutoCompound vault. Includes compound bonus calculations
+        and auto-compounding schedule information.
+      operationId: previewAutoCompoundDeposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DepositPreviewRequest'
+      responses:
+        '200':
+          description: AutoCompound deposit preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoCompoundDepositPreviewResponse'
+
+  /api/v1/defi/autocompound/withdraw/preview:
+    post:
+      tags:
+        - DeFi
+      summary: Preview AutoCompound Withdrawal
+      description: |
+        Preview withdrawal from AutoCompound vault. Includes compound earnings
+        calculations and optimal withdrawal timing.
+      operationId: previewAutoCompoundWithdrawal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawPreviewRequest'
+      responses:
+        '200':
+          description: AutoCompound withdrawal preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoCompoundWithdrawPreviewResponse'
+
   # Signature Generation Endpoints
   /api/v1/signatures/deposit:
     post:
@@ -1873,4 +2118,476 @@ components:
                 message:
                   type: string
                   example: "Transaction executed successfully"
+
+    # New DeFi Discovery & Management Schemas
+    VaultsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                vaults:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      symbol:
+                        type: string
+                      type:
+                        type: string
+                        enum: [multi-strategy, single-strategy]
+                      contractAddress:
+                        type: string
+                        pattern: '^0x[a-fA-F0-9]{40}$'
+                      asset:
+                        type: string
+                      currentAPY:
+                        type: number
+                      riskLevel:
+                        type: integer
+                        minimum: 1
+                        maximum: 5
+                      isActive:
+                        type: boolean
+                      tvl:
+                        type: string
+                      strategy:
+                        type: string
+                      description:
+                        type: string
+                      targetUser:
+                        type: string
+                      features:
+                        type: array
+                        items:
+                          type: string
+                count:
+                  type: integer
+                filters:
+                  type: object
+                timestamp:
+                  type: number
+
+    VaultMetricsResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                vaultAddress:
+                  type: string
+                name:
+                  type: string
+                type:
+                  type: string
+                totalValueLocked:
+                  type: string
+                totalSupply:
+                  type: string
+                currentAPY:
+                  type: number
+                utilizationRate:
+                  type: number
+                riskScore:
+                  type: number
+                activeStrategies:
+                  type: integer
+                performanceMetrics:
+                  type: object
+                  properties:
+                    weeklyReturn:
+                      type: number
+                    monthlyReturn:
+                      type: number
+                    yearlyReturn:
+                      type: number
+                    volatility:
+                      type: number
+                    sharpeRatio:
+                      type: number
+                compoundingInfo:
+                  type: object
+                  properties:
+                    frequency:
+                      type: string
+                    lastCompound:
+                      type: number
+                    nextCompound:
+                      type: number
+                lastUpdated:
+                  type: number
+
+    PortfolioResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userAddress:
+                  type: string
+                totalValue:
+                  type: string
+                totalValueUSD:
+                  type: number
+                positions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      vaultId:
+                        type: string
+                      vaultName:
+                        type: string
+                      shares:
+                        type: string
+                      underlyingAssets:
+                        type: string
+                      valueUSD:
+                        type: number
+                      percentage:
+                        type: string
+                      apy:
+                        type: number
+                      riskLevel:
+                        type: integer
+                performance:
+                  type: object
+                  properties:
+                    averageAPY:
+                      type: number
+                    riskDistribution:
+                      type: object
+                      properties:
+                        low:
+                          type: number
+                        medium:
+                          type: number
+                        high:
+                          type: number
+                    diversificationScore:
+                      type: number
+                lastUpdated:
+                  type: number
+
+    PositionsResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userAddress:
+                  type: string
+                positions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      vaultId:
+                        type: string
+                      vaultName:
+                        type: string
+                      vaultAddress:
+                        type: string
+                      position:
+                        type: object
+                        properties:
+                          shares:
+                            type: string
+                          underlyingAssets:
+                            type: string
+                          sharePrice:
+                            type: string
+                          claimableRewards:
+                            type: string
+                          entryPrice:
+                            type: string
+                          unrealizedGains:
+                            type: string
+                      metrics:
+                        type: object
+                        properties:
+                          apy:
+                            type: number
+                          riskLevel:
+                            type: integer
+                          strategies:
+                            type: array
+                          allocation:
+                            type: array
+                          compoundingInfo:
+                            type: object
+                      lastUpdated:
+                        type: number
+                totalPositions:
+                  type: integer
+                timestamp:
+                  type: number
+
+    StrategiesResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                strategies:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      vaultType:
+                        type: string
+                      vaultName:
+                        type: string
+                      apy:
+                        type: number
+                      effectiveAPY:
+                        type: number
+                      riskLevel:
+                        type: integer
+                      allocation:
+                        type: number
+                      tvl:
+                        type: string
+                      category:
+                        type: string
+                        enum: [lending, staking, liquidity]
+                      isActive:
+                        type: boolean
+                      compounding:
+                        type: boolean
+                      description:
+                        type: string
+                count:
+                  type: integer
+                categories:
+                  type: array
+                  items:
+                    type: string
+                vaultTypes:
+                  type: array
+                  items:
+                    type: string
+                timestamp:
+                  type: number
+
+    StrategyComparisonResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                strategies:
+                  type: object
+                  properties:
+                    standardizedYield:
+                      type: object
+                    autoCompound:
+                      type: object
+                riskRewardAnalysis:
+                  type: object
+                performanceComparison:
+                  type: object
+                lastUpdated:
+                  type: number
+
+    DepositPreviewRequest:
+      type: object
+      required:
+        - amount
+        - userAddress
+      properties:
+        amount:
+          type: string
+          description: Amount to deposit
+          example: "100"
+        userAddress:
+          type: string
+          description: User wallet address
+          pattern: '^0x[a-fA-F0-9]{40}$'
+
+    WithdrawPreviewRequest:
+      type: object
+      required:
+        - shares
+        - userAddress
+      properties:
+        shares:
+          type: string
+          description: Shares to withdraw
+          example: "100"
+        userAddress:
+          type: string
+          description: User wallet address
+          pattern: '^0x[a-fA-F0-9]{40}$'
+
+    DepositPreviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                deposit:
+                  type: object
+                  properties:
+                    amount:
+                      type: string
+                    asset:
+                      type: string
+                expected:
+                  type: object
+                  properties:
+                    shares:
+                      type: string
+                    sharePrice:
+                      type: string
+                    slippage:
+                      type: string
+                    minimumShares:
+                      type: string
+                fees:
+                  type: object
+                  properties:
+                    platformFee:
+                      type: string
+                    networkFee:
+                      type: string
+                gasEstimate:
+                  type: object
+                  properties:
+                    gasLimit:
+                      type: string
+                    gasPrice:
+                      type: string
+                    estimatedCost:
+                      type: string
+                vaultInfo:
+                  type: object
+                risks:
+                  type: object
+                  properties:
+                    level:
+                      type: integer
+                    factors:
+                      type: array
+                      items:
+                        type: string
+                timestamp:
+                  type: number
+
+    WithdrawPreviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                withdrawal:
+                  type: object
+                  properties:
+                    shares:
+                      type: string
+                    maxShares:
+                      type: string
+                expected:
+                  type: object
+                  properties:
+                    assets:
+                      type: string
+                    assetsAfterFee:
+                      type: string
+                    asset:
+                      type: string
+                    sharePrice:
+                      type: string
+                fees:
+                  type: object
+                validation:
+                  type: object
+                  properties:
+                    canWithdraw:
+                      type: boolean
+                    reason:
+                      type: string
+                      nullable: true
+                gasEstimate:
+                  type: object
+                taxImplications:
+                  type: object
+                timing:
+                  type: object
+                timestamp:
+                  type: number
+
+    AutoCompoundDepositPreviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/DepositPreviewResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                expected:
+                  type: object
+                  properties:
+                    compoundBonus:
+                      type: string
+                compoundInfo:
+                  type: object
+                  properties:
+                    currentAPY:
+                      type: number
+                    compoundingFrequency:
+                      type: string
+                    lastCompound:
+                      type: number
+                    nextCompound:
+                      type: number
+                    autoCompoundEnabled:
+                      type: boolean
+
+    AutoCompoundWithdrawPreviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/WithdrawPreviewResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                expected:
+                  type: object
+                  properties:
+                    compoundEarnings:
+                      type: string
+                compoundInfo:
+                  type: object
+                  properties:
+                    totalCompoundEarnings:
+                      type: string
+                    effectiveAPY:
+                      type: number
+                    compoundPeriods:
+                      type: string
 
