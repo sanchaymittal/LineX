@@ -1,6 +1,6 @@
 /**
  * TypeScript interfaces for TestUSDT contract
- * Contract Address: 0x09D48C3b2DE92DDfD26ebac28324F1226da1f400 (Vault asset)
+ * Contract Address: Defined in CONTRACT_ADDRESSES.TEST_USDT
  * Network: Kaia Testnet (Kairos)
  */
 
@@ -152,9 +152,11 @@ export interface TransactionStatus {
   error?: string;
 }
 
-// Contract constants
+// Contract constants - Import from centralized constants
+import { CONTRACT_ADDRESSES } from '../constants/contractAbis';
+
 export const CONTRACT_CONSTANTS = {
-  ADDRESS: process.env.MOCK_USDT_CONTRACT_ADDRESS || '0x09D48C3b2DE92DDfD26ebac28324F1226da1f400',
+  ADDRESS: CONTRACT_ADDRESSES.TEST_USDT, // Use centralized contract address
   DECIMALS: 6,
   FAUCET_AMOUNT_USDT: 100,
   FAUCET_COOLDOWN_HOURS: 0, // Disabled for testing
