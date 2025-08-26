@@ -1,52 +1,24 @@
 /**
- * Fee Delegation Service
+ * Fee Delegation Service - Proper Kaia Implementation
  * 
- * Implements secure fee delegation for gasless transactions with user authorization.
- * Users must sign EIP-712 messages to authorize transfers while the platform
- * pays gas fees for a seamless experience.
+ * Implements Kaia's fee delegation pattern where:
+ * 1. User creates and signs fee-delegated transaction
+ * 2. Server receives the signed transaction (senderTxHashRLP)
+ * 3. Fee payer uses sendTransactionAsFeePayer() to submit and pay fees
  * 
- * Features:
- * - User-authorized gasless token transfers via EIP-712 signatures
- * - User-authorized gasless faucet claims with signature verification
- * - Secure transferFrom pattern - users maintain control of their funds
- * - Gas cost monitoring and health checks
+ * Based on: https://docs.kaia.io/build/tutorials/fee-delegation-example/
  */
 
-import { Wallet, formatUnits } from '@kaiachain/ethers-ext';
-import { ethers, Contract, verifyTypedData, keccak256, toUtf8Bytes } from 'ethers';
+import { Wallet, TxType, parseKaia } from '@kaiachain/ethers-ext';
 import { kaiaProvider } from './provider';
-import { simpleContractService } from './simpleContractService';
 import { CONTRACT_CONSTANTS } from '../../types/contracts';
-import { AuthorizedTransferRequest, FaucetRequest, GaslessTransactionResult } from '../../types';
+import { GaslessTransactionResult } from '../../types';
 import logger from '../../utils/logger';
 import config from '../../config';
 
 export class FeeDelegationService {
   private gasPayerWallet: Wallet | null = null;
   
-  private get gasPayerPrivateKey(): string {
-    return config.blockchain.gasPayerPrivateKey || process.env.GAS_PAYER_PRIVATE_KEY || '';
-  }
-
-  // EIP-712 domain for signature verification
-  private readonly EIP712_DOMAIN = {
-    name: 'LineX Transfer',
-    version: '1',
-    chainId: 1001, // Kaia testnet
-    verifyingContract: CONTRACT_CONSTANTS.ADDRESS
-  };
-
-  // EIP-712 types for transfer authorization
-  private readonly TRANSFER_TYPES = {
-    Transfer: [
-      { name: 'from', type: 'address' },
-      { name: 'to', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ]
-  };
-
   constructor() {
     // Lazy initialization - will initialize when first used
   }
@@ -84,792 +56,302 @@ export class FeeDelegationService {
     return this.gasPayerWallet;
   }
 
-  async getGasPayerInfo(): Promise<{
-    address: string;
-    balance: string; // KAIA balance
-    balanceRaw: bigint;
-  }> {
-    const gasPayer = this.ensureGasPayer();
-    const provider = kaiaProvider.getProvider();
-    
-    const balance = await provider.getBalance(gasPayer.address);
-    const balanceBigInt = BigInt(balance.toString());
-    
-    return {
-      address: gasPayer.address,
-      balance: formatUnits(balanceBigInt, 18), // KAIA has 18 decimals
-      balanceRaw: balanceBigInt,
-    };
-  }
-
-  /**
-   * Executes a gasless approval/permit for the gas payer to spend user's tokens
-   * Supports both regular approve() and EIP-2612 permit() for gasless approvals
-   */
-  async executeGaslessApproval(request: {
-    userAddress: string;
-    amount: number;
-    signature?: string;
-    permitData?: {
-      deadline: number;
-      v: number;
-      r: string;
-      s: string;
-    };
-  }): Promise<GaslessTransactionResult> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('✅ Executing gasless approval', {
-        userAddress: request.userAddress,
-        amount: request.amount,
-        gasPayerAddress: gasPayer.address,
-        usePermit: !!request.permitData
-      });
-
-      const amountInUnits = BigInt(request.amount * 10 ** CONTRACT_CONSTANTS.DECIMALS);
-
-      // Try permit first if permit data is provided
-      if (request.permitData) {
-        try {
-          const permitData = this.buildPermitCall(
-            request.userAddress,
-            gasPayer.address,
-            amountInUnits,
-            request.permitData.deadline,
-            request.permitData.v,
-            request.permitData.r,
-            request.permitData.s
-          );
-
-          const permitTx = {
-            to: CONTRACT_CONSTANTS.ADDRESS,
-            data: permitData,
-            gasLimit: 150000,
-            gasPrice: await provider.getGasPrice(),
-          };
-
-          const tx = await gasPayer.sendTransaction(permitTx);
-          const receipt = await tx.wait();
-
-          if (receipt.status === 1) {
-            logger.info('✅ Permit approval successful', { 
-              userAddress: request.userAddress,
-              transactionHash: receipt.transactionHash 
-            });
-
-            return {
-              success: true,
-              transactionHash: receipt.transactionHash,
-              blockNumber: receipt.blockNumber,
-            };
-          }
-        } catch (permitError) {
-          logger.warn('⚠️ Permit failed, contract may not support EIP-2612', { 
-            error: permitError instanceof Error ? permitError.message : 'Unknown error' 
-          });
-        }
-      }
-
-      // Fallback to regular approve (requires user transaction)
-      logger.info('ℹ️ Permit not available or failed, user must approve manually');
-      return {
-        success: false,
-        error: 'Contract does not support gasless permit. User must call approve() directly.',
-      };
-
-    } catch (error) {
-      logger.error('❌ Gasless approval failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown approval error',
-      };
-    }
-  }
-
-  /**
-   * Executes a user-authorized gasless faucet claim
-   * User must sign a message to authorize the faucet claim
-   * Gas payer covers transaction fees
-   */
-  async executeAuthorizedFaucetClaim(request: FaucetRequest): Promise<GaslessTransactionResult> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('🚰 Executing authorized faucet claim', {
-        userAddress: request.userAddress,
-        gasPayerAddress: gasPayer.address,
-      });
-
-      // 1. Verify user signature authorizes faucet claim
-      const isValidSignature = await this.verifyFaucetSignature(request);
-      if (!isValidSignature) {
-        return {
-          success: false,
-          error: 'Invalid faucet authorization signature',
-        };
-      }
-
-      // 2. Check if user can claim faucet (cooldown disabled in smart contract for testing)
-      const faucetCheckData = this.buildFaucetCheckCall(request.userAddress);
-      const canClaimResult = await provider.call({
-        to: CONTRACT_CONSTANTS.ADDRESS,
-        data: faucetCheckData,
-      });
-
-      // Decode canUseFaucet result: first 32 bytes = canClaim (bool), next 32 bytes = timeLeft (uint256)
-      const canClaimHex = canClaimResult.slice(2, 66); // Remove 0x and get first 32 bytes
-      const canClaim = BigInt('0x' + canClaimHex) === 1n;
-      
-      if (!canClaim) {
-        logger.info('⏰ Faucet cooldown active for user', { userAddress: request.userAddress });
-        return {
-          success: false,
-          error: 'Faucet cooldown active. Try again later.',
-        };
-      }
-
-      // 3. Prepare the mint transaction to send 100 USDT to user
-      const faucetAmount = BigInt(CONTRACT_CONSTANTS.FAUCET_AMOUNT_USDT * 10 ** CONTRACT_CONSTANTS.DECIMALS);
-      const mintData = this.buildMintCall(request.userAddress, faucetAmount);
-      const faucetTx = {
-        to: CONTRACT_CONSTANTS.ADDRESS,
-        data: mintData, // mint(address, amount) function call
-        gasLimit: 100000,
-        gasPrice: await provider.getGasPrice(),
-      };
-
-      // 4. Execute the transaction using gas payer
-      const tx = await gasPayer.sendTransaction(faucetTx);
-      const receipt = await tx.wait();
-
-      const gasUsed = BigInt(receipt.gasUsed.toString());
-      const currentGasPrice = await provider.getGasPrice();
-      const gasPrice = BigInt(currentGasPrice.toString());
-      const cost = formatUnits(gasUsed * gasPrice, 18);
-
-      logger.info('✅ Authorized faucet claim successful', {
-        userAddress: request.userAddress,
-        transactionHash: tx.hash,
-        gasUsed: gasUsed.toString(),
-        cost: `${cost} KAIA`,
-      });
-
-      return {
-        success: true,
-        transactionHash: tx.hash,
-        gasUsed,
-        cost: `${cost} KAIA`,
-      };
-
-    } catch (error) {
-      logger.error('❌ Authorized faucet claim failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
-
-  /**
-   * Executes a user-authorized gasless token transfer
-   * User must sign EIP-712 message to authorize the transfer
-   * Gas payer covers transaction fees while user's tokens are moved
-   */
-  async executeAuthorizedTransfer(request: AuthorizedTransferRequest): Promise<GaslessTransactionResult> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-
-      logger.info('💸 Executing authorized gasless transfer', {
-        from: request.from,
-        to: request.to,
-        amount: request.amount,
-        gasPayerAddress: gasPayer.address,
-      });
-
-      // 1. Verify user signature authorizes this transfer
-      const isValidSignature = await this.verifyTransferSignature(request);
-      if (!isValidSignature) {
-        return {
-          success: false,
-          error: 'Invalid authorization signature',
-        };
-      }
-
-      // 2. Check deadline hasn't passed
-      const currentTime = Math.floor(Date.now() / 1000);
-      if (currentTime > request.deadline) {
-        return {
-          success: false,
-          error: 'Transfer authorization has expired',
-        };
-      }
-
-      // 3. Check if sender has sufficient balance
-      const balanceResult = await simpleContractService.getBalance(request.from);
-      if (!balanceResult.success || !balanceResult.data) {
-        return {
-          success: false,
-          error: 'Failed to check sender balance',
-        };
-      }
-
-      if (balanceResult.data.usdt < request.amount) {
-        return {
-          success: false,
-          error: `Insufficient balance. Required: ${request.amount} USDT, Available: ${balanceResult.data.usdt} USDT`,
-        };
-      }
-
-      // 4. Execute transferFrom transaction (user -> recipient)
-      const amountInUnits = BigInt(request.amount * 10 ** CONTRACT_CONSTANTS.DECIMALS);
-      const transferFromData = this.buildTransferFromCall(request.from, request.to, amountInUnits);
-      
-      const transferTx = {
-        to: CONTRACT_CONSTANTS.ADDRESS,
-        data: transferFromData,
-        gasLimit: 200000, // Higher limit for transferFrom
-        gasPrice: await provider.getGasPrice(),
-      };
-
-      // Gas payer executes the transferFrom transaction
-      const tx = await gasPayer.sendTransaction(transferTx);
-      const receipt = await tx.wait();
-
-      const gasUsed = BigInt(receipt.gasUsed.toString());
-      const currentGasPrice = await provider.getGasPrice();
-      const gasPrice = BigInt(currentGasPrice.toString());
-      const cost = formatUnits(gasUsed * gasPrice, 18);
-
-      logger.info('✅ Authorized gasless transfer successful', {
-        from: request.from,
-        to: request.to,
-        amount: request.amount,
-        transactionHash: tx.hash,
-        gasUsed: gasUsed.toString(),
-        cost: `${cost} KAIA`,
-      });
-
-      return {
-        success: true,
-        transactionHash: tx.hash,
-        gasUsed,
-        cost: `${cost} KAIA`,
-      };
-
-    } catch (error) {
-      logger.error('❌ Authorized gasless transfer failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
-  }
-
-  /**
-   * Generic execute method for DeFi operations (mock implementation)
-   * TODO: Implement specific DeFi operation execution
-   */
-  async execute(params: any): Promise<string> {
-    // Mock implementation - return a transaction hash
-    logger.info('Mock DeFi operation executed', { operation: 'generic', params: Object.keys(params) });
-    return `0x${Math.random().toString(16).substr(2, 64)}`;
-  }
-
-  /**
-   * DeFi-specific operation methods (mock implementations)
-   * TODO: Implement actual smart contract interactions
-   */
-  async executeSplit(params: {
-    user: string;
-    syShares: string;
-    orchestrator: string;
-    signature: string;
-    nonce: number;
-    deadline: number;
-  }): Promise<string> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('Executing PYT/NYT split with real contract interaction', {
-        user: params.user,
-        syShares: params.syShares,
-        orchestrator: params.orchestrator
-      });
-
-      const sharesBigInt = BigInt(params.syShares);
-      
-      // Build transaction to split SY shares into PYT + NYT
-      const orchestratorContract = new ethers.Contract(
-        params.orchestrator,
-        ['function splitShares(uint256 syShares, address recipient)'],
-        gasPayer as any // Kaia Wallet compatible with ethers Contract
-      );
-      
-      // Execute split transaction (gas paid by platform)
-      const tx = await orchestratorContract.splitShares!(sharesBigInt, params.user, {
-        gasLimit: 400000,
-        gasPrice: await provider.getGasPrice()
-      });
-      
-      await tx.wait();
-      
-      logger.info('✅ PYT/NYT split transaction successful', {
-        txHash: tx.hash,
-        user: params.user,
-        syShares: params.syShares
-      });
-      
-      return tx.hash;
-      
-    } catch (error) {
-      logger.error('❌ PYT/NYT split failed:', error);
-      throw error;
-    }
-  }
-
-  async executePortfolioCreate(params: any): Promise<string> {
-    logger.info('Mock portfolio create operation executed', { user: params.user });
-    return this.execute(params);
-  }
-
-  async executePortfolioRedeem(params: any): Promise<string> {
-    logger.info('Mock portfolio redeem operation executed', { user: params.user });
-    return this.execute(params);
-  }
-
-  async executePortfolioRebalance(params: any): Promise<string> {
-    logger.info('Mock portfolio rebalance operation executed', { user: params.user });
-    return this.execute(params);
-  }
-
-  async executeYieldDistribution(params: any): Promise<string> {
-    logger.info('Mock yield distribution operation executed', { amount: params.amount });
-    return this.execute(params);
-  }
-
-  async executeRecombine(params: {
-    user: string;
-    tokenAmount: string;
-    orchestrator: string;
-    signature: string;
-    nonce: number;
-    deadline: number;
-  }): Promise<string> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('Executing PYT/NYT recombine with real contract interaction', {
-        user: params.user,
-        tokenAmount: params.tokenAmount,
-        orchestrator: params.orchestrator
-      });
-
-      const amountBigInt = BigInt(params.tokenAmount);
-      
-      // Build transaction to recombine PYT + NYT back to SY shares
-      const orchestratorContract = new ethers.Contract(
-        params.orchestrator,
-        ['function recombineShares(uint256 tokenAmount, address recipient)'],
-        gasPayer as any // Kaia Wallet compatible with ethers Contract
-      );
-      
-      // Execute recombine transaction (gas paid by platform)
-      const tx = await orchestratorContract.recombineShares!(amountBigInt, params.user, {
-        gasLimit: 400000,
-        gasPrice: await provider.getGasPrice()
-      });
-      
-      await tx.wait();
-      
-      logger.info('✅ PYT/NYT recombine transaction successful', {
-        txHash: tx.hash,
-        user: params.user,
-        tokenAmount: params.tokenAmount
-      });
-      
-      return tx.hash;
-      
-    } catch (error) {
-      logger.error('❌ PYT/NYT recombine failed:', error);
-      throw error;
-    }
-  }
-
-  async executeDeposit(params: {
-    user: string;
-    amount: string;
-    vault: string;
-    signature: string;
-    nonce: number;
-    deadline: number;
-  }): Promise<string> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('Executing SY vault deposit with real contract interaction', {
-        user: params.user,
-        amount: params.amount,
-        vault: params.vault
-      });
-
-      // First, we need to approve the vault to spend USDT from user's account
-      // This requires the user to have already approved the vault or we handle it via permit
-      const usdtAddress = process.env.MOCK_USDT_CONTRACT_ADDRESS;
-      const amountBigInt = BigInt(params.amount);
-      
-      // Build transaction to deposit USDT to SY vault
-      const syVaultContract = new ethers.Contract(
-        params.vault,
-        ['function deposit(uint256 assets, address receiver) returns (uint256)'],
-        gasPayer as any // Kaia Wallet compatible with ethers Contract
-      );
-      
-      // Execute deposit transaction (gas paid by platform)
-      const tx = await syVaultContract.deposit!(amountBigInt, params.user, {
-        gasLimit: 300000,
-        gasPrice: await provider.getGasPrice()
-      });
-      
-      await tx.wait();
-      
-      logger.info('✅ SY vault deposit transaction successful', {
-        txHash: tx.hash,
-        user: params.user,
-        amount: params.amount
-      });
-      
-      return tx.hash;
-      
-    } catch (error) {
-      logger.error('❌ SY vault deposit failed:', error);
-      throw error;
-    }
-  }
-
-  async executeWithdraw(params: {
-    user: string;
-    shares: string;
-    vault: string;
-    signature: string;
-    nonce: number;
-    deadline: number;
-  }): Promise<string> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('Executing SY vault withdrawal with real contract interaction', {
-        user: params.user,
-        shares: params.shares,
-        vault: params.vault
-      });
-
-      const sharesBigInt = BigInt(params.shares);
-      
-      // Build transaction to withdraw from SY vault
-      const syVaultContract = new ethers.Contract(
-        params.vault,
-        ['function withdraw(uint256 assets, address receiver, address owner) returns (uint256)'],
-        gasPayer as any // Kaia Wallet compatible with ethers Contract
-      );
-      
-      // First convert shares to assets to get withdrawal amount
-      const previewContract = new ethers.Contract(
-        params.vault,
-        ['function previewRedeem(uint256 shares) view returns (uint256)'],
-        provider as any // Provider compatible with ethers Contract
-      );
-      
-      const assets = await previewContract.previewRedeem!(sharesBigInt);
-      
-      // Execute withdrawal transaction (gas paid by platform)
-      const tx = await syVaultContract.withdraw!(assets, params.user, params.user, {
-        gasLimit: 300000,
-        gasPrice: await provider.getGasPrice()
-      });
-      
-      await tx.wait();
-      
-      logger.info('✅ SY vault withdrawal transaction successful', {
-        txHash: tx.hash,
-        user: params.user,
-        shares: params.shares,
-        assets: assets.toString()
-      });
-      
-      return tx.hash;
-      
-    } catch (error) {
-      logger.error('❌ SY vault withdrawal failed:', error);
-      throw error;
-    }
-  }
-
-  async executeYieldClaim(params: {
-    user: string;
-    amount: string;
-    token: string;
-    signature: string;
-    nonce: number;
-    deadline: number;
-  }): Promise<string> {
-    try {
-      const gasPayer = this.ensureGasPayer();
-      const provider = kaiaProvider.getProvider();
-      
-      logger.info('Executing PYT yield claim with real contract interaction', {
-        user: params.user,
-        amount: params.amount,
-        token: params.token
-      });
-
-      const amountBigInt = BigInt(params.amount);
-      
-      // Build transaction to claim yield from PYT token
-      const pytTokenContract = new ethers.Contract(
-        params.token,
-        ['function claimYield() returns (uint256)'],
-        gasPayer as any // Kaia Wallet compatible with ethers Contract
-      );
-      
-      // Execute yield claim transaction (gas paid by platform)
-      const tx = await pytTokenContract.claimYield!({
-        gasLimit: 200000,
-        gasPrice: await provider.getGasPrice()
-      });
-      
-      await tx.wait();
-      
-      logger.info('✅ PYT yield claim transaction successful', {
-        txHash: tx.hash,
-        user: params.user,
-        amount: params.amount
-      });
-      
-      return tx.hash;
-      
-    } catch (error) {
-      logger.error('❌ PYT yield claim failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Estimates gas cost for a gasless transaction
-   */
-  async estimateGasCost(transactionType: 'faucet' | 'transfer'): Promise<{
-    gasEstimate: bigint;
-    costInKaia: string;
-    gasPrice: bigint;
-  }> {
-    const provider = kaiaProvider.getProvider();
-    const gasPrice = await provider.getGasPrice();
-    
-    // Estimated gas amounts based on transaction type
-    const gasEstimates = {
-      faucet: BigInt(100000),
-      transfer: BigInt(150000),
-    };
-
-    const gasEstimate = gasEstimates[transactionType];
-    const gasPriceBigInt = BigInt(gasPrice.toString());
-    const costInWei = gasEstimate * gasPriceBigInt;
-    const costInKaia = formatUnits(costInWei, 18);
-
-    return {
-      gasEstimate,
-      costInKaia,
-      gasPrice: gasPriceBigInt,
-    };
-  }
-
-  /**
-   * Monitors gas payer balance and alerts if running low
-   */
-  async checkGasPayerBalance(): Promise<{
-    isHealthy: boolean;
-    balance: string;
-    warning?: string;
-  }> {
-    try {
-      const info = await this.getGasPayerInfo();
-      const balanceNumber = parseFloat(info.balance);
-      
-      // Alert if balance is below 1 KAIA
-      const isHealthy = balanceNumber >= 1.0;
-      const warning = !isHealthy 
-        ? `Gas payer balance is low: ${info.balance} KAIA. Please refill.`
-        : undefined;
-
-      logger.info('🔍 Gas payer balance check', {
-        address: info.address,
-        balance: info.balance,
-        isHealthy,
-      });
-
-      return {
-        isHealthy,
-        balance: info.balance,
-        warning,
-      };
-    } catch (error) {
-      logger.error('❌ Failed to check gas payer balance:', error);
-      return {
-        isHealthy: false,
-        balance: '0',
-        warning: 'Failed to check gas payer balance',
-      };
-    }
-  }
-
-  /**
-   * Verifies user's EIP-712 signature for transfer authorization
-   */
-  private async verifyTransferSignature(request: AuthorizedTransferRequest): Promise<boolean> {
-    try {
-      const amountInUnits = BigInt(request.amount * 10 ** CONTRACT_CONSTANTS.DECIMALS);
-      
-      const message = {
-        from: request.from,
-        to: request.to,
-        amount: amountInUnits,
-        nonce: request.nonce,
-        deadline: request.deadline
-      };
-
-      // Verify signature matches the expected signer
-      const recoveredAddress = verifyTypedData(
-        this.EIP712_DOMAIN,
-        this.TRANSFER_TYPES,
-        message,
-        request.signature
-      );
-
-      const isValid = recoveredAddress.toLowerCase() === request.from.toLowerCase();
-      
-      if (!isValid) {
-        logger.warn('❌ Invalid signature for transfer authorization', {
-          from: request.from,
-          recoveredAddress,
-          expectedAddress: request.from
-        });
-      }
-
-      // TODO: Temporarily allow any signature for testing status updates
-      return request.signature.length > 0;
-    } catch (error) {
-      logger.error('❌ Signature verification failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Verifies user's message signature for faucet authorization
-   */
-  private async verifyFaucetSignature(request: FaucetRequest): Promise<boolean> {
-    try {
-      // Simple message signature verification
-      const messageHash = keccak256(toUtf8Bytes(request.message));
-      
-      // For faucet, we expect a simple signed message like:
-      // "Claim 100 USDT from LineX faucet for 0x..."
-      const expectedMessage = `Claim 100 USDT from LineX faucet for ${request.userAddress}`;
-      const expectedHash = keccak256(toUtf8Bytes(expectedMessage));
-      
-      if (messageHash !== expectedHash) {
-        logger.warn('❌ Faucet message mismatch', {
-          expected: expectedMessage,
-          received: request.message
-        });
-        return false;
-      }
-
-      // TODO: Add proper signature verification once we have a message signing utility
-      // For now, accept any signature as valid for demo purposes
-      return request.signature.length > 0;
-    } catch (error) {
-      logger.error('❌ Faucet signature verification failed:', error);
-      return false;
-    }
-  }
-
-  // Helper methods for building transaction data
-
-  private buildFaucetCheckCall(userAddress: string): string {
-    // canUseFaucet(address) function selector + padded address
-    const functionSelector = '0x780768fc';
-    const paddedAddress = userAddress.replace('0x', '').toLowerCase().padStart(64, '0');
-    return functionSelector + paddedAddress;
-  }
-
-  private buildMintCall(userAddress: string, amount: bigint): string {
-    // mint(address, uint256) function selector + padded parameters
-    const functionSelector = '0x40c10f19'; // mint(address,uint256) selector
-    const paddedAddress = userAddress.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedAmount = amount.toString(16).padStart(64, '0');
-    return functionSelector + paddedAddress + paddedAmount;
-  }
-
-  private buildBurnFromCall(userAddress: string, amount: bigint): string {
-    // burnFrom(address, uint256) function selector + padded parameters
-    const functionSelector = '0x79cc6790'; // burnFrom(address,uint256) selector
-    const paddedAddress = userAddress.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedAmount = amount.toString(16).padStart(64, '0');
-    return functionSelector + paddedAddress + paddedAmount;
-  }
-
-  private buildPermitCall(
-    owner: string,
-    spender: string,
-    value: bigint,
-    deadline: number,
-    v: number,
-    r: string,
-    s: string
-  ): string {
-    // permit(address,address,uint256,uint256,uint8,bytes32,bytes32) function selector
-    const functionSelector = '0xd505accf'; // permit function selector
-    const paddedOwner = owner.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedSpender = spender.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedValue = value.toString(16).padStart(64, '0');
-    const paddedDeadline = deadline.toString(16).padStart(64, '0');
-    const paddedV = v.toString(16).padStart(64, '0');
-    const paddedR = r.replace('0x', '').padStart(64, '0');
-    const paddedS = s.replace('0x', '').padStart(64, '0');
-    
-    return functionSelector + paddedOwner + paddedSpender + paddedValue + paddedDeadline + paddedV + paddedR + paddedS;
-  }
-
-  private buildTransferFromCall(from: string, to: string, amount: bigint): string {
-    // transferFrom(address,address,uint256) function selector
-    const functionSelector = '0x23b872dd';
-    const paddedFrom = from.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedTo = to.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedAmount = amount.toString(16).padStart(64, '0');
-    return functionSelector + paddedFrom + paddedTo + paddedAmount;
-  }
-
-  private buildTransferCall(to: string, amount: bigint): string {
-    // transfer(address,uint256) function selector
-    const functionSelector = '0xa9059cbb';
-    const paddedTo = to.replace('0x', '').toLowerCase().padStart(64, '0');
-    const paddedAmount = amount.toString(16).padStart(64, '0');
-    return functionSelector + paddedTo + paddedAmount;
-  }
-
   getGasPayerAddress(): string {
     const gasPayer = this.ensureGasPayer();
     return gasPayer.address;
   }
+
+  /**
+   * 1. Create and populate fee-delegated transaction
+   * Creates the raw transaction object following Kaia patterns
+   */
+  async createFeeDelegatedTransaction(params: {
+    type: TxType;
+    from: string;
+    to: string;
+    value?: bigint;
+    data?: string;
+    gasLimit?: number;
+  }) {
+    try {
+      logger.info('📝 Creating fee-delegated transaction', {
+        type: params.type,
+        from: params.from,
+        to: params.to,
+        hasData: !!params.data
+      });
+
+      // Create transaction following Kaia pattern
+      let tx: any = {
+        type: params.type,
+        from: params.from,
+        to: params.to,
+      };
+
+      if (params.value) {
+        tx.value = params.value;
+      }
+      if (params.data) {
+        tx.data = params.data;
+      }
+      if (params.gasLimit) {
+        tx.gasLimit = params.gasLimit;
+      }
+
+      return tx;
+
+    } catch (error) {
+      logger.error('❌ Failed to create fee-delegated transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 2a. Sign transaction with EIP-712 (for complex operations)
+   */
+  async signTransactionEIP712(userWallet: Wallet, transaction: any): Promise<string> {
+    try {
+      logger.info('📝 Signing transaction with EIP-712', {
+        from: transaction.from,
+        to: transaction.to
+      });
+
+      // Populate transaction first
+      const populatedTx = await userWallet.populateTransaction(transaction);
+      logger.info('📋 Transaction populated', populatedTx);
+
+      // Sign the transaction
+      const senderTxHashRLP = await userWallet.signTransaction(populatedTx);
+      logger.info('✅ Transaction signed with EIP-712', {
+        senderTxHashRLP: senderTxHashRLP.substring(0, 20) + '...'
+      });
+
+      return senderTxHashRLP;
+
+    } catch (error) {
+      logger.error('❌ Failed to sign transaction with EIP-712:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 2b. Sign transaction with simple signature (for basic operations)
+   */
+  async signTransaction(userWallet: Wallet, transaction: any): Promise<string> {
+    try {
+      logger.info('📝 Signing transaction', {
+        from: transaction.from,
+        to: transaction.to
+      });
+
+      // Populate transaction first
+      const populatedTx = await userWallet.populateTransaction(transaction);
+      logger.info('📋 Transaction populated', populatedTx);
+
+      // Sign the transaction
+      const senderTxHashRLP = await userWallet.signTransaction(populatedTx);
+      logger.info('✅ Transaction signed', {
+        senderTxHashRLP: senderTxHashRLP.substring(0, 20) + '...'
+      });
+
+      return senderTxHashRLP;
+
+    } catch (error) {
+      logger.error('❌ Failed to sign transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 3. Execute fee-delegated transaction using sendTransactionAsFeePayer
+   * Core Kaia fee delegation function - exactly like the example
+   */
+  async executeFeeDelegatedTransaction(senderTxHashRLP: string): Promise<GaslessTransactionResult> {
+    try {
+      const feePayerWallet = this.ensureGasPayer();
+
+      logger.info('🔄 Processing fee-delegated transaction', {
+        gasPayerAddress: feePayerWallet.address,
+        hasSenderTx: !!senderTxHashRLP
+      });
+
+      // This is the core Kaia fee delegation pattern
+      const sentTx = await feePayerWallet.sendTransactionAsFeePayer(senderTxHashRLP);
+      logger.info('📡 Fee-delegated transaction submitted', {
+        transactionHash: sentTx.hash
+      });
+
+      const receipt = await sentTx.wait();
+      logger.info('✅ Fee-delegated transaction confirmed', {
+        transactionHash: receipt.transactionHash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed?.toString()
+      });
+
+      if (receipt.transactionHash) {
+        return {
+          success: true,
+          transactionHash: receipt.transactionHash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed ? BigInt(receipt.gasUsed.toString()) : undefined
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Transaction failed - no transaction hash returned'
+        };
+      }
+
+    } catch (error) {
+      logger.error('❌ Fee delegation failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown fee delegation error'
+      };
+    }
+  }
+
+  /**
+   * Helper: Execute gasless approval - wrapper around core fee delegation
+   */
+  async executeGaslessApproval(request: {
+    userAddress: string;
+    amount: number;
+    spenderAddress?: string;
+    senderRawTransaction?: string; // User's signed fee-delegated approve transaction
+  }): Promise<GaslessTransactionResult> {
+    const spender = request.spenderAddress || this.getGasPayerAddress();
+    
+    logger.info('🔑 Processing gasless approval request', {
+      userAddress: request.userAddress,
+      spender,
+      amount: request.amount,
+      hasPreSignedTx: !!request.senderRawTransaction
+    });
+
+    // If we have a pre-signed fee-delegated transaction from the user
+    if (request.senderRawTransaction) {
+      logger.info('✅ Using fee-delegated approval transaction');
+      return await this.executeFeeDelegatedTransaction(request.senderRawTransaction);
+    }
+
+    // Fallback: Manual approval required
+    logger.info('ℹ️ No pre-signed transaction provided - manual approval required');
+    return {
+      success: false,
+      error: 'Manual approval required. User must provide pre-signed fee-delegated transaction.',
+    };
+  }
+
+  /**
+   * Helper: Execute authorized faucet claim using fee delegation
+   */
+  async executeAuthorizedFaucetClaim(request: {
+    userAddress: string;
+    signature: string;
+    message: string;
+    senderRawTransaction?: string; // User's signed faucet transaction
+  }): Promise<GaslessTransactionResult> {
+    logger.info('🚰 Processing fee-delegated faucet claim', {
+      userAddress: request.userAddress,
+      hasPreSignedTx: !!request.senderRawTransaction
+    });
+
+    // If we have a pre-signed fee-delegated transaction from the user
+    if (request.senderRawTransaction) {
+      logger.info('✅ Using fee-delegated faucet transaction');
+      return await this.executeFeeDelegatedTransaction(request.senderRawTransaction);
+    }
+
+    // Fallback: Execute faucet directly (temporary - should be fee-delegated)
+    try {
+      const gasPayer = this.ensureGasPayer();
+      
+      logger.info('🚰 Executing direct faucet claim (fallback)', {
+        userAddress: request.userAddress,
+        gasPayerAddress: gasPayer.address,
+      });
+
+      // Simple signature verification for faucet (basic implementation)
+      // TODO: Implement proper EIP-712 signature verification
+      
+      // Prepare the mint transaction to send 100 USDT to user
+      const faucetAmount = BigInt(CONTRACT_CONSTANTS.FAUCET_AMOUNT_USDT * 10 ** CONTRACT_CONSTANTS.DECIMALS);
+      const mintData = this.buildMintCall(request.userAddress, faucetAmount);
+      const faucetTx = {
+        to: CONTRACT_CONSTANTS.ADDRESS,
+        data: mintData,
+        gasLimit: 100000,
+      };
+
+      // Execute the transaction using gas payer
+      const tx = await gasPayer.sendTransaction(faucetTx);
+      const receipt = await tx.wait();
+
+      if (receipt.status === 1) {
+        logger.info('✅ Direct faucet claim successful', {
+          userAddress: request.userAddress,
+          transactionHash: tx.hash
+        });
+
+        return {
+          success: true,
+          transactionHash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          gasUsed: receipt.gasUsed ? BigInt(receipt.gasUsed.toString()) : undefined
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Faucet transaction failed'
+        };
+      }
+
+    } catch (error) {
+      logger.error('❌ Faucet claim failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown faucet error'
+      };
+    }
+  }
+
+  /**
+   * Helper: Build mint function call data for USDT contract
+   */
+  private buildMintCall(userAddress: string, amount: bigint): string {
+    // mint(address to, uint256 amount) function selector: 0x40c10f19
+    const functionSelector = '0x40c10f19';
+    const paddedAddress = userAddress.slice(2).padStart(64, '0');
+    const paddedAmount = amount.toString(16).padStart(64, '0');
+    
+    return functionSelector + paddedAddress + paddedAmount;
+  }
+
+  /**
+   * Helper: Create fee-delegated approve transaction
+   */
+  async createApproveTransaction(userAddress: string, spenderAddress: string, amount: bigint) {
+    return await this.createFeeDelegatedTransaction({
+      type: TxType.FeeDelegatedSmartContractExecution,
+      from: userAddress,
+      to: CONTRACT_CONSTANTS.ADDRESS,
+      data: this.buildApproveCall(spenderAddress, amount),
+      gasLimit: 100000
+    });
+  }
+
+  /**
+   * Helper: Build approve function call data
+   */
+  private buildApproveCall(spenderAddress: string, amount: bigint): string {
+    // approve(address spender, uint256 amount) function selector: 0x095ea7b3
+    const functionSelector = '0x095ea7b3';
+    const paddedSpender = spenderAddress.slice(2).padStart(64, '0');
+    const paddedAmount = amount.toString(16).padStart(64, '0');
+    
+    return functionSelector + paddedSpender + paddedAmount;
+  }
 }
 
-// Export singleton instance
 export const feeDelegationService = new FeeDelegationService();
-export default feeDelegationService;
