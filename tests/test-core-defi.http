@@ -3,7 +3,7 @@
 
 @baseUrl = http://localhost:3000
 @prodUrl = https://linex.vercel.app
-@testUser = 0x742d35Cc8C29B3C4C4f0e9E0E0b24C2c2e5C5e5C
+@testUser = 0x85C648D862c8aD6A1000D53F1520240FD3C1c165
 
 ###############################################################################
 # 1. HEALTH & CONNECTIVITY TESTS
