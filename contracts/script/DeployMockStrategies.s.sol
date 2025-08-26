@@ -12,7 +12,7 @@ import "../src/strategies/MockLPStrategy.sol";
  */
 contract DeployMockStrategies is Script {
     // Known contract addresses
-    address constant USDT_ADDRESS = 0x2d889aAAD5F81e9eBc4D14630d7C14F1CE6878dD;
+    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
     
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

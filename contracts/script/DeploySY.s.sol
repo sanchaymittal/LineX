@@ -10,12 +10,12 @@ import "../src/core/StandardizedYield.sol";
  */
 contract DeploySY is Script {
     // Known contract addresses
-    address constant USDT_ADDRESS = 0x2d889aAAD5F81e9eBc4D14630d7C14F1CE6878dD;
+    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
     
     // Mock strategy addresses (deployed in previous step)
-    address constant MOCK_LENDING_STRATEGY = 0xDd8E7722166F6A4F900BC04f33e20F4bF8595425;
-    address constant MOCK_STAKING_STRATEGY = 0xd5D473398759891Cd5059e8a54c02F1312dA79Ef;
-    address constant MOCK_LP_STRATEGY = 0x87dd2e3f84767660e63d08623cEfCf60FDF0500C;
+    address constant MOCK_LENDING_STRATEGY = 0x0a3FFc636d13fDC90D5cd6a305Fbd2Cff8d07115;
+    address constant MOCK_STAKING_STRATEGY = 0x44d2624dD1925875bD35d68185B49d2d0c90430B;
+    address constant MOCK_LP_STRATEGY = 0x373AE28C9e5b9D2426ECEb36B0C18CB7d0CCEB91;
     
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

@@ -11,10 +11,10 @@ import "../src/strategies/MockStakingStrategy.sol";
  */
 contract DeployAutoCompound is Script {
     // Known contract addresses
-    address constant USDT_ADDRESS = 0x2d889aAAD5F81e9eBc4D14630d7C14F1CE6878dD;
+    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
     
     // Mock strategy addresses (use staking for stable returns)
-    address constant MOCK_STAKING_STRATEGY = 0xd5D473398759891Cd5059e8a54c02F1312dA79Ef;
+    address constant MOCK_STAKING_STRATEGY = 0x44d2624dD1925875bD35d68185B49d2d0c90430B;
     
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

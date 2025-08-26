@@ -10,8 +10,8 @@ import "../src/core/PYTNYTOrchestrator.sol";
  */
 contract DeployPYTNYTOrchestrator is Script {
     // Correct contract addresses to match other deployed contracts
-    address constant USDT_ADDRESS = 0x2d889aAAD5F81e9eBc4D14630d7C14F1CE6878dD;
-    address constant STANDARDIZED_YIELD = 0x6A291219e8e83192f841cB577ebA20932808Fb45;
+    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
+    address constant STANDARDIZED_YIELD = 0x121F0fe66052e7da2c223b972Fc81a7881a2643a;
     
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");

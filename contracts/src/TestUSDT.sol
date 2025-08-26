@@ -19,11 +19,7 @@ contract TestUSDT is ERC20, ERC20Permit, Ownable, Pausable {
     uint256 private constant INITIAL_SUPPLY = 1_000_000 * 10**DECIMALS;
     
     // Faucet configuration
-    uint256 public constant FAUCET_AMOUNT = 100 * 10**DECIMALS; // 100 USDT
-    uint256 public constant FAUCET_COOLDOWN = 0; // Disabled for testing
-    
-    // Track faucet usage
-    mapping(address => uint256) public lastFaucetClaim;
+    uint256 public constant FAUCET_AMOUNT = 250 * 10**DECIMALS; // 250 USDT
     
     // Events
     event Minted(address indexed to, uint256 amount);
@@ -75,18 +71,10 @@ contract TestUSDT is ERC20, ERC20Permit, Ownable, Pausable {
 
     /**
      * @dev Faucet function for demo purposes
-     * Users can claim free USDT for testing (cooldown disabled for testing convenience)
+     * Users can claim free USDT for testing (no cooldown)
      */
     function faucet() external whenNotPaused {
-        require(
-            lastFaucetClaim[msg.sender] == 0 || 
-            block.timestamp >= lastFaucetClaim[msg.sender] + FAUCET_COOLDOWN,
-            "TestUSDT: Faucet cooldown active"
-        );
-        
-        lastFaucetClaim[msg.sender] = block.timestamp;
         _mint(msg.sender, FAUCET_AMOUNT);
-        
         emit FaucetClaimed(msg.sender, FAUCET_AMOUNT);
     }
 
@@ -97,37 +85,19 @@ contract TestUSDT is ERC20, ERC20Permit, Ownable, Pausable {
      */
     function faucetFor(address user) external whenNotPaused {
         require(user != address(0), "TestUSDT: Invalid user address");
-        require(
-            lastFaucetClaim[user] == 0 || 
-            block.timestamp >= lastFaucetClaim[user] + FAUCET_COOLDOWN,
-            "TestUSDT: Faucet cooldown active"
-        );
         
-        lastFaucetClaim[user] = block.timestamp;
         _mint(user, FAUCET_AMOUNT);
-        
         emit FaucetClaimed(user, FAUCET_AMOUNT);
     }
 
     /**
-     * @dev Check if an address can use the faucet
+     * @dev Check if an address can use the faucet (always true now)
      * @param user Address to check
      * @return canClaim Whether user can claim from faucet
      * @return timeLeft Seconds until next claim is available
      */
-    function canUseFaucet(address user) external view returns (bool canClaim, uint256 timeLeft) {
-        // First time users can always claim
-        if (lastFaucetClaim[user] == 0) {
-            return (true, 0);
-        }
-        
-        uint256 nextClaimTime = lastFaucetClaim[user] + FAUCET_COOLDOWN;
-        
-        if (block.timestamp >= nextClaimTime) {
-            return (true, 0);
-        } else {
-            return (false, nextClaimTime - block.timestamp);
-        }
+    function canUseFaucet(address user) external pure returns (bool canClaim, uint256 timeLeft) {
+        return (true, 0);
     }
 
     /**

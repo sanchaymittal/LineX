@@ -34,7 +34,7 @@ contract DeployTestUSDT is Script {
         console.log("Contract decimals:", testUSDT.decimals());
         console.log("Initial total supply:", testUSDT.getFormattedTotalSupply(), "USDT");
         console.log("Faucet amount:", testUSDT.FAUCET_AMOUNT() / 10**testUSDT.decimals(), "USDT");
-        console.log("Faucet cooldown:", testUSDT.FAUCET_COOLDOWN() / 3600, "hours");
+        console.log("Faucet cooldown: DISABLED");
         console.log("Contract owner:", testUSDT.owner());
         
         // Verify deployment
