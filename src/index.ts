@@ -57,15 +57,14 @@ async function createInitializedApp() {
   if (!app) {
     app = createApp();
     
-    // TODO: Initialize and attach DeFi services once TypeScript issues are resolved
-    // try {
-    //   const defiServices = await initializeDeFiServices();
-    //   attachDeFiServices(app, defiServices);
-    //   logger.info('✅ DeFi services attached to Express app');
-    // } catch (error) {
-    //   logger.error('❌ Failed to initialize DeFi services:', error);
-    //   // Continue without DeFi services in case of failure
-    // }
+    try {
+      const defiServices = await initializeDeFiServices();
+      attachDeFiServices(app, defiServices);
+      logger.info('✅ DeFi services attached to Express app');
+    } catch (error) {
+      logger.error('❌ Failed to initialize DeFi services:', error);
+      // Continue without DeFi services in case of failure
+    }
     
     logger.info('📡 Express app created');
   }
