@@ -1,6 +1,6 @@
 /**
  * TypeScript interfaces for TestUSDT contract
- * Contract Address: 0xc2627811d8309B7e01976e49a99658492a7c8eE4
+ * Contract Address: 0x09D48C3b2DE92DDfD26ebac28324F1226da1f400 (Vault asset)
  * Network: Kaia Testnet (Kairos)
  */
 
@@ -154,7 +154,7 @@ export interface TransactionStatus {
 
 // Contract constants
 export const CONTRACT_CONSTANTS = {
-  ADDRESS: '0x2d889aAAD5F81e9eBc4D14630d7C14F1CE6878dD',
+  ADDRESS: process.env.MOCK_USDT_CONTRACT_ADDRESS || '0x09D48C3b2DE92DDfD26ebac28324F1226da1f400',
   DECIMALS: 6,
   FAUCET_AMOUNT_USDT: 100,
   FAUCET_COOLDOWN_HOURS: 0, // Disabled for testing
