@@ -75,7 +75,7 @@ contract TestUSDT is ERC20, ERC20Permit, Ownable, Pausable {
 
     /**
      * @dev Faucet function for demo purposes
-     * Users can claim free USDT for testing with 24h cooldown
+     * Users can claim free USDT for testing (cooldown disabled for testing convenience)
      */
     function faucet() external whenNotPaused {
         require(
