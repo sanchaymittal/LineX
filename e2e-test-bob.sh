@@ -18,10 +18,14 @@ set -e  # Exit on any error
 
 # Configuration
 API_BASE="http://localhost:3000"
+
+# Source contract addresses from constants
+eval "$(node scripts/get-contract-addresses.js)"
+
 BOB_PRIVATE_KEY="0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-BOB_ADDRESS="0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-VAULT_ADDRESS="0x13cFf25b9ce2F409b7e96F7C572234AF8e060420"
-USDT_ADDRESS="0x09D48C3b2DE92DDfD26ebac28324F1226da1f400"
+BOB_ADDRESS="$BOB_ADDRESS"
+VAULT_ADDRESS="$STANDARDIZED_YIELD"           # StandardizedYield Vault
+USDT_ADDRESS="$TEST_USDT"                     # TestUSDT Contract
 TEST_AMOUNT="100000000"  # 100 USDT (6 decimals)
 SHARES_TO_WITHDRAW="50000000"  # 50 SY shares (6 decimals)
 
