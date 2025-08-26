@@ -7,7 +7,7 @@ import { Contract, formatUnits, verifyTypedData, Interface } from 'ethers';
 import { KaiaProviderManager } from '../blockchain/provider';
 import { FeeDelegationService } from '../blockchain/feeDelegationService';
 import { RedisService } from '../redis/redisService';
-import { getContractInstance, CONTRACT_ADDRESSES, AUTO_COMPOUND_VAULT_WRAPPER_ABI } from '../../constants/contractAbis';
+import { getContractInstance, CONTRACT_ADDRESSES, AUTO_COMPOUND_VAULT_ABI } from '../../constants/contractAbis';
 import logger from '../../utils/logger';
 
 export interface AutoCompoundDepositParams {
@@ -57,7 +57,7 @@ export class AutoCompoundVaultService {
     this.kaiaProvider = kaiaProvider;
     this.feeDelegation = feeDelegation;
     this.redis = redis;
-    this.vaultAddress = CONTRACT_ADDRESSES.AUTO_COMPOUND_VAULT_WRAPPER;
+    this.vaultAddress = CONTRACT_ADDRESSES.AUTO_COMPOUND_VAULT;
   }
 
   /**
@@ -135,12 +135,18 @@ export class AutoCompoundVaultService {
    */
   async getBalance(userAddress: string): Promise<AutoCompoundBalance> {
     try {
+      logger.info(`🔍 Getting AutoCompound balance for ${userAddress} from direct vault ${this.vaultAddress}`);
       const provider = await this.kaiaProvider.getProvider();
-      const vaultContract = getContractInstance('AUTO_COMPOUND_VAULT_WRAPPER', provider as any) as any;
+      const vaultContract = getContractInstance('AUTO_COMPOUND_VAULT', provider as any) as any;
 
       const shares = await vaultContract.balanceOf(userAddress);
-      const underlyingAssets = await vaultContract.convertToAssets(shares);
-      const sharePrice = shares > 0n ? (underlyingAssets * 1000000000000000000n) / shares : 1000000000000000000n;
+      logger.info(`📊 Raw shares from vault: ${shares.toString()}`);
+      
+      const sharePrice = await vaultContract.getPricePerFullShare();
+      logger.info(`💰 Share price from vault: ${sharePrice.toString()}`);
+      
+      const underlyingAssets = shares > 0n ? (shares * BigInt(sharePrice)) / 1000000000000000000n : 0n;
+      logger.info(`📈 Calculated underlying assets: ${underlyingAssets.toString()}`);
 
       return {
         shares: shares.toString(),
@@ -166,20 +172,19 @@ export class AutoCompoundVaultService {
       }
 
       const provider = await this.kaiaProvider.getProvider();
-      const vaultContract = getContractInstance('AUTO_COMPOUND_VAULT_WRAPPER', provider as any) as any;
+      const vaultContract = getContractInstance('AUTO_COMPOUND_VAULT', provider as any) as any;
 
-      const [totalAssets, totalSupply, apy, riskLevel] = await Promise.all([
+      const [totalAssets, totalSupply, apy] = await Promise.all([
         vaultContract.totalAssets(),
-        vaultContract.totalSupply(),
-        vaultContract.apy(),
-        vaultContract.riskLevel()
+        vaultContract.totalSupply(), 
+        vaultContract.getCurrentAPY()
       ]);
 
       const vaultInfo: AutoCompoundVaultInfo = {
         totalAssets: totalAssets.toString(),
         totalSupply: totalSupply.toString(),
         apy: parseFloat((apy * 100n / 10000n).toString()) / 100, // Convert basis points to percentage
-        riskLevel: parseInt(riskLevel.toString()),
+        riskLevel: 3, // AutoCompound has medium risk
         compoundingRate: '24', // 24 hour compounding
         lastCompound: Date.now() - (Math.random() * 86400000) // Mock last compound within 24hrs
       };
@@ -203,7 +208,7 @@ export class AutoCompoundVaultService {
       logger.info(`Manual compounding triggered by user ${userAddress}`);
 
       const provider = await this.kaiaProvider.getProvider();
-      const vaultContract = getContractInstance('AUTO_COMPOUND_VAULT_WRAPPER', provider as any) as any;
+      const vaultContract = getContractInstance('AUTO_COMPOUND_VAULT', provider as any) as any;
 
       // This would trigger a compound operation if the vault supports it
       // For now, this is a placeholder as our wrapper handles compounding automatically
@@ -309,9 +314,9 @@ export class AutoCompoundVaultService {
       const provider = await this.kaiaProvider.getProvider();
       const receipt = await provider.getTransactionReceipt(txHash);
       
-      // Parse Deposit event from AutoCompound vault wrapper
+      // Parse Deposit event from AutoCompound vault direct
       const vaultInterface = new Interface([
-        'event Deposit(address indexed user, uint256 amount)'
+        'event Deposit(address indexed user, uint256 amount, uint256 shares)'
       ]);
 
       for (const log of receipt.logs) {
@@ -319,7 +324,7 @@ export class AutoCompoundVaultService {
           if (log.address.toLowerCase() === this.vaultAddress.toLowerCase()) {
             const parsed = vaultInterface.parseLog(log);
             if (parsed && parsed.name === 'Deposit') {
-              return parsed.args.amount.toString();
+              return parsed.args.shares.toString(); // Return shares minted, not amount deposited
             }
           }
         } catch (e) {
@@ -342,9 +347,9 @@ export class AutoCompoundVaultService {
       const provider = await this.kaiaProvider.getProvider();
       const receipt = await provider.getTransactionReceipt(txHash);
       
-      // Parse Withdraw event from AutoCompound vault wrapper
+      // Parse Withdraw event from AutoCompound vault direct
       const vaultInterface = new Interface([
-        'event Withdraw(address indexed user, uint256 amount)'
+        'event Withdraw(address indexed user, uint256 shares, uint256 amount)'
       ]);
 
       for (const log of receipt.logs) {
