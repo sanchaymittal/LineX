@@ -97,12 +97,7 @@ export function createApp(): express.Application {
         },
         defiEndpoints: {
           vault: '/api/v1/defi/vault',
-          split: '/api/v1/defi/split',
-          yield: '/api/v1/defi/yield',
-          nyt: '/api/v1/defi/nyt',
-          portfolio: '/api/v1/defi/portfolio',
           autocompound: '/api/v1/defi/autocompound',
-          strategies: '/api/v1/defi/strategies',
           analytics: '/api/v1/defi/analytics',
         },
         documentation: {
