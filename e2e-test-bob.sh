@@ -24,7 +24,7 @@ eval "$(node scripts/get-contract-addresses.js)"
 
 BOB_PRIVATE_KEY="0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 BOB_ADDRESS="$BOB_ADDRESS"
-VAULT_ADDRESS="$STANDARDIZED_YIELD"           # StandardizedYield Vault
+VAULT_ADDRESS="$STANDARDIZED_YIELD_VAULT"           # StandardizedYield Vault
 USDT_ADDRESS="$TEST_USDT"                     # TestUSDT Contract
 TEST_AMOUNT="200000000"  # 200 USDT (6 decimals)
 SHARES_TO_WITHDRAW="50000000"  # 50 SY shares (6 decimals)
@@ -107,11 +107,10 @@ make_api_call "GET" "/api/v1/defi/vault/balance/$BOB_ADDRESS" "" "Getting Bob's 
 # make_api_call "GET" "/api/v1/defi/vault/apy" "" "Getting current vault APY"
 # echo -e "${YELLOW}📍 STEP 5: Get Vault Strategies${NC}"
 # make_api_call "GET" "/api/v1/defi/vault/strategies" "" "Getting vault strategy allocations"
-# Test 5: Skip faucet claim - Bob already has USDT
-echo -e "${YELLOW}📍 STEP 6: Skip Faucet Claim${NC}"
-echo -e "${BLUE}💰 Bob already has sufficient USDT for testing${NC}"
-echo -e "${GREEN}✅ Skipping faucet claim${NC}"
-echo ""
+# Test 5: Bob Claims USDT from Faucet (Multiple Claims for Sufficient Balance)
+echo -e "${YELLOW}📍 STEP 6: Bob Claims USDT from Faucet${NC}"
+make_api_call "POST" "/api/v1/wallet/faucet" '{"userAddress": "'$BOB_ADDRESS'"}' "Claiming 250 USDT from faucet for Bob (1st claim)"
+make_api_call "POST" "/api/v1/wallet/faucet" '{"userAddress": "'$BOB_ADDRESS'"}' "Claiming additional 250 USDT from faucet for Bob (2nd claim)"
 
 # Test 6: USDT Allowance/Approval for Vault
 echo -e "${YELLOW}📍 STEP 7: Bob Approves USDT for Vault Spending${NC}"
@@ -174,7 +173,7 @@ echo ""
 
 # Test 7: Bob Deposits to StandardizedYield Vault
 echo -e "${YELLOW}📍 STEP 8: Bob Creates Position in StandardizedYield${NC}"
-echo -e "${BLUE}💰 Depositing $TEST_AMOUNT USDT to SY Vault...${NC}"
+echo -e "${BLUE}💰 Depositing 200 USDT to SY Vault...${NC}"
 
 # Generate deposit signature via API
 deposit_sig_data='{
@@ -252,7 +251,7 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "${YELLOW}📊 WORKFLOW SUMMARY:${NC}"
 echo "   ✅ Bob checked initial balances"
-echo "   ✅ Bob claimed USDT from faucet"  
+echo "   ✅ Bob claimed USDT from faucet (API-generated fee-delegated)"  
 echo "   ✅ Bob approved USDT spending for vault (API-generated fee-delegated)"
 echo "   ✅ Bob deposited USDT to StandardizedYield vault (API-generated fee-delegated)"
 echo "   ✅ Bob received SY shares representing multi-strategy position"
