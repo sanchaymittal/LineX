@@ -243,7 +243,7 @@ router.post('/deposit/autocompound', async (req: Request, res: Response) => {
       from: userAddress,
       to: vaultAddress,
       data: depositData,
-      gasLimit: 300000,
+      gasLimit: 500000, // Increased to safely handle AutoCompound + strategy interactions
       value: 0
     };
 
