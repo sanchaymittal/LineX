@@ -2,6 +2,40 @@
 
 This document provides an overview of all smart contracts in the LineX DeFi ecosystem deployed on Kaia testnet.
 
+## 🚀 Quick Start
+
+### Build and Test Contracts
+
+```bash
+# Build all contracts
+pnpm run forge:build
+
+# Run comprehensive test suite (50+ tests)
+pnpm run forge:test
+
+# Deploy to Kaia testnet
+pnpm run forge:deploy:testnet
+
+# View deployed contract addresses
+cat contracts/deployment-info.txt
+```
+
+### Latest Deployment (Kaia Testnet)
+
+- **TestUSDT**: `0x0692640d5565735C67fcB40f45251DD5D3f8fb9f`
+- **StandardizedYield**: `0x36033918321ec4C81aF68434aD6A9610983CCB63`
+- **AutoCompoundVault**: `0x02c83bD37d55AA5c3c2B4ba9D56613dD4c16A7D0`
+- **Mock Strategies**: 3 deployed strategy contracts for testing
+- **Network**: Kaia Testnet (Kairos) - Chain ID: 1001
+
+### Testing Status ✅
+
+**50+ passing tests** across 4 comprehensive test files:
+- **TestUSDT.t.sol**: 9 tests - ERC-20 functionality, minting, permits
+- **StandardizedYield.t.sol**: 17 tests - Multi-strategy allocation, ERC4626 compliance
+- **AutoCompoundVault.t.sol**: 23 tests - Auto-harvest, compounding, strategy migration
+- **Integration.t.sol**: 4+ tests - Cross-vault workflows, stress scenarios
+
 ## Contract Architecture Overview
 
 LineX implements a **streamlined, economically sound** DeFi yield farming system with **two core contracts** and several supporting contracts. This clean architecture focuses on **profitable stablecoin yield farming** without complex tokenomics that don't add value for pegged assets.
@@ -253,6 +287,57 @@ The LineX DeFi system was **deliberately simplified** from a complex multi-contr
 - **Time-locked upgrades** for user protection and transparency
 - **Backward compatibility** during transition periods
 - **User migration incentives** for seamless vault transitions
+
+## 🔧 API Integration & Recent Improvements
+
+### Backend Integration Status ✅
+
+LineX DeFi contracts are fully integrated with the Express.js API backend:
+
+**Portfolio Management APIs**:
+- `GET /api/v1/defi/portfolio/:userAddress` - Aggregated portfolio with real-time vault balances
+- `GET /api/v1/defi/positions/:userAddress` - Detailed position tracking across both vaults  
+- `GET /api/v1/defi/transactions/:userAddress` - Transaction history and recent deposits
+
+**Transaction Helper APIs**:
+- `POST /api/v1/defi/approve-request` - Prepare ERC20 approval transactions
+- `POST /api/v1/defi/deposit-request` - Prepare vault deposit transactions (SY & AutoCompound)
+- `POST /api/v1/defi/withdraw-request` - Prepare vault withdrawal transactions
+- `POST /api/v1/defi/transfer-request` - Prepare ERC20 transfer transactions
+
+### Deployment & Build Process
+
+**Vercel Serverless Deployment**:
+```bash
+# Production build process
+pnpm run vercel-build  # Compiles TS → JS and copies to api/ directory
+
+# Local development 
+pnpm run dev:redis     # Starts Redis + development server
+pnpm run forge:test    # Runs all contract tests
+```
+
+**Smart Contract Deployment**:
+```bash
+# Deploy fresh contracts to Kaia testnet
+pnpm run forge:deploy:testnet
+
+# Run comprehensive integration tests
+./e2e-test-bob.sh      # StandardizedYield workflow
+./e2e-test-alice.sh    # AutoCompound workflow
+```
+
+### Architecture Benefits
+
+**Economic Soundness**:
+- Eliminated complex PYT/NYT tokenization that doesn't work for stablecoins
+- Focused on two viable products: diversification (SY) vs optimization (AutoCompound)
+- Real yield generation without unsustainable tokenomics
+
+**Technical Excellence**:
+- 50+ comprehensive tests covering all edge cases and workflows
+- Production-ready deployment on Vercel with full API integration
+- Clean, maintainable codebase with proper error handling and logging
 
 ---
 

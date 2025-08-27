@@ -17,7 +17,8 @@ const router: Router = Router();
 
 // ERC20 ABI for approval
 const ERC20_ABI = [
-  'function approve(address spender, uint256 amount) returns (bool)'
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function transfer(address to, uint256 amount) returns (bool)'
 ];
 
 // ERC4626 Vault ABI for deposits
@@ -369,6 +370,90 @@ router.post('/signature/execute',
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Transaction execution failed'
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/defi/transfer-request
+ * Prepare ERC20 transfer transaction request for frontend signing
+ */
+router.post('/transfer-request',
+  [
+    body('tokenAddress').isEthereumAddress().withMessage('Valid token address required'),
+    body('fromAddress').isEthereumAddress().withMessage('Valid from address required'),
+    body('toAddress').isEthereumAddress().withMessage('Valid to address required'),
+    body('amount').custom((value) => {
+      if (typeof value === 'string' && value.trim() !== '') return true;
+      if (typeof value === 'number' && value > 0) return true;
+      return false;
+    }).withMessage('Amount must be a positive number or non-empty string')
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid input',
+          details: errors.array()
+        });
+        return;
+      }
+
+      const { tokenAddress, fromAddress, toAddress, amount } = req.body;
+
+      logger.info('💸 Preparing transfer transaction request', {
+        tokenAddress,
+        fromAddress,
+        toAddress,
+        amount
+      });
+
+      // ERC20 transfer function: transfer(address to, uint256 amount)
+      const transferInterface = new Interface(ERC20_ABI);
+      const transferData = transferInterface.encodeFunctionData('transfer', [
+        toAddress,
+        String(amount)
+      ]);
+
+      // Create fee-delegated transaction request
+      const txRequest = {
+        type: TxType.FeeDelegatedSmartContractExecution,
+        from: fromAddress,
+        to: tokenAddress,
+        data: transferData,
+        gasLimit: 100000, // Standard ERC20 transfer gas limit
+        value: 0
+      };
+
+      logger.info('✅ Transfer transaction request prepared', {
+        from: fromAddress,
+        to: tokenAddress,
+        dataLength: transferData.length,
+        gasLimit: 100000
+      });
+
+      res.json({
+        success: true,
+        data: {
+          txRequest,
+          description: 'ERC20 transfer transaction request',
+          expectedGas: '100000',
+          function: 'transfer',
+          parameters: {
+            to: toAddress,
+            amount: String(amount)
+          }
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to prepare transfer request:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to prepare transfer request'
       });
     }
   }
