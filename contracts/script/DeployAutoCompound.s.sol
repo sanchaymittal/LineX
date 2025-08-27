@@ -10,16 +10,15 @@ import "../src/strategies/MockStakingStrategy.sol";
  * @notice Deploys the AutoCompoundVault contract (single-strategy auto-compound)
  */
 contract DeployAutoCompound is Script {
-    // Known contract addresses
-    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
+    // Contract addresses - UPDATED WITH FRESH DEPLOYMENT
+    address constant USDT_ADDRESS = 0x0692640d5565735C67fcB40f45251DD5D3f8fb9f; // Fresh TestUSDT deployment
     
-    // Mock strategy addresses (use staking for stable returns)
-    address constant MOCK_STAKING_STRATEGY = 0x44d2624dD1925875bD35d68185B49d2d0c90430B;
+    // Mock strategy addresses - UPDATED WITH FRESH DEPLOYMENT
+    address constant MOCK_STAKING_STRATEGY = 0x9A4d5239fC2257717d886f64632B3884839F055C; // Fresh MockStakingStrategy
     
     function run() public {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        
         vm.startBroadcast(deployerPrivateKey);
         
         console.log("Deploying AutoCompoundVault...");

@@ -9,18 +9,17 @@ import "../src/core/StandardizedYield.sol";
  * @notice Deploys the StandardizedYield contract (multi-strategy wrapper)
  */
 contract DeploySY is Script {
-    // Known contract addresses
-    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
+    // Contract addresses - UPDATED WITH FRESH DEPLOYMENT
+    address constant USDT_ADDRESS = 0x0692640d5565735C67fcB40f45251DD5D3f8fb9f; // Fresh TestUSDT deployment
     
-    // Mock strategy addresses (deployed in previous step)
-    address constant MOCK_LENDING_STRATEGY = 0x0a3FFc636d13fDC90D5cd6a305Fbd2Cff8d07115;
-    address constant MOCK_STAKING_STRATEGY = 0x44d2624dD1925875bD35d68185B49d2d0c90430B;
-    address constant MOCK_LP_STRATEGY = 0x373AE28C9e5b9D2426ECEb36B0C18CB7d0CCEB91;
+    // Mock strategy addresses - UPDATED WITH FRESH DEPLOYMENT  
+    address constant MOCK_LENDING_STRATEGY = 0xbaf58d8208137598fB9AcFbA6737554A12B42BD0; // Fresh MockLendingStrategy
+    address constant MOCK_STAKING_STRATEGY = 0x9A4d5239fC2257717d886f64632B3884839F055C; // Fresh MockStakingStrategy
+    address constant MOCK_LP_STRATEGY = 0xaCe325ba665D6c579b0A8786A71525ad855b3De7; // Fresh MockLPStrategy
     
     function run() public {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        
         vm.startBroadcast(deployerPrivateKey);
         
         console.log("Deploying StandardizedYield...");

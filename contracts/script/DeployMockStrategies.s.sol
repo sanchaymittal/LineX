@@ -11,35 +11,36 @@ import "../src/strategies/MockLPStrategy.sol";
  * @notice Deploys all 3 mock strategies for testing the DeFi ecosystem
  */
 contract DeployMockStrategies is Script {
-    // Known contract addresses
-    address constant USDT_ADDRESS = 0xb5Ad080243b3de7ee561F3D85AD3521C3238D0eb;
+    // Contract addresses - UPDATED WITH FRESH DEPLOYMENT
+    address constant USDT_ADDRESS = 0x0692640d5565735C67fcB40f45251DD5D3f8fb9f; // Fresh TestUSDT deployment
     
     function run() public {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
         
         console.log("Deploying Mock Strategies...");
         console.log("USDT Address:", USDT_ADDRESS);
+        console.log("Deployer Address:", deployer);
         
         // Deploy MockLendingStrategy (Aave-like, 10% APY)
         MockLendingStrategy lendingStrategy = new MockLendingStrategy(
             USDT_ADDRESS,
-            msg.sender // deployer as owner
+            deployer // deployer as owner
         );
         console.log("MockLendingStrategy deployed at:", address(lendingStrategy));
         
         // Deploy MockStakingStrategy (Ethereum staking-like, 8% APY)  
         MockStakingStrategy stakingStrategy = new MockStakingStrategy(
             USDT_ADDRESS,
-            msg.sender // deployer as owner
+            deployer // deployer as owner
         );
         console.log("MockStakingStrategy deployed at:", address(stakingStrategy));
         
         // Deploy MockLPStrategy (Uniswap LP-like, 12% volatile APY)
         MockLPStrategy lpStrategy = new MockLPStrategy(
             USDT_ADDRESS,
-            msg.sender // deployer as owner
+            deployer // deployer as owner
         );
         console.log("MockLPStrategy deployed at:", address(lpStrategy));
         
