@@ -22,7 +22,11 @@ const router = Router();
  */
 router.post('/deposit',
   [
-    body('amount').isString().notEmpty().withMessage('Amount is required'),
+    body('amount').custom((value) => {
+      if (typeof value === 'string' && value.trim() !== '') return true;
+      if (typeof value === 'number' && value > 0) return true;
+      return false;
+    }).withMessage('Amount must be a positive number or non-empty string'),
     body('signature').isString().notEmpty().withMessage('Signature is required'),
     body('nonce').isInt({ min: 1 }).withMessage('Valid nonce is required'),
     body('deadline').isInt({ min: 1 }).withMessage('Valid deadline is required'),
@@ -270,7 +274,11 @@ router.get('/strategies', async (req: Request, res: Response): Promise<void> => 
  */
 router.post('/deposit/preview',
   [
-    body('amount').isString().notEmpty().withMessage('Amount is required'),
+    body('amount').custom((value) => {
+      if (typeof value === 'string' && value.trim() !== '') return true;
+      if (typeof value === 'number' && value > 0) return true;
+      return false;
+    }).withMessage('Amount must be a positive number or non-empty string'),
     body('userAddress').isEthereumAddress().withMessage('Valid user address required')
   ],
   async (req: Request, res: Response): Promise<void> => {
@@ -293,7 +301,7 @@ router.post('/deposit/preview',
         const vaultInfo = await standardizedYieldService.getVaultInfo();
         
         // Calculate expected shares (1:1 for simplicity, or use actual contract previewDeposit)
-        const amountBN = parseUnits(amount, 6); // USDT has 6 decimals
+        const amountBN = parseUnits(String(amount), 6); // USDT has 6 decimals
         const totalAssets = parseUnits(vaultInfo.totalAssets || '1000000', 6);
         const totalSupply = parseUnits(vaultInfo.totalSupply || '1000000', 18);
         
