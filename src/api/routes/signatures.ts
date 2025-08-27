@@ -8,7 +8,7 @@ import { Wallet, TxType, JsonRpcProvider, parseKaia } from '@kaiachain/ethers-ex
 import { feeDelegationService } from '../../services/blockchain/feeDelegationService';
 import logger from '../../utils/logger';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * Generate fee-delegated deposit transaction signature for StandardizedYield (SY) vault

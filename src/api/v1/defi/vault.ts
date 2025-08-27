@@ -12,7 +12,7 @@ import { errorHandler } from '../../middleware/errorHandler';
 import logger from '../../../utils/logger';
 import { parseUnits, formatUnits } from 'ethers';
 
-const router = Router();
+const router: Router = Router();
 
 // Auth middleware is applied at the parent router level
 
@@ -20,17 +20,20 @@ const router = Router();
  * POST /api/v1/defi/vault/deposit
  * Deposit USDT to SY vault with user authorization
  */
-router.post('/deposit',
+router.post(
+  '/deposit',
   [
-    body('amount').custom((value) => {
-      if (typeof value === 'string' && value.trim() !== '') return true;
-      if (typeof value === 'number' && value > 0) return true;
-      return false;
-    }).withMessage('Amount must be a positive number or non-empty string'),
+    body('amount')
+      .custom((value) => {
+        if (typeof value === 'string' && value.trim() !== '') return true;
+        if (typeof value === 'number' && value > 0) return true;
+        return false;
+      })
+      .withMessage('Amount must be a positive number or non-empty string'),
     body('signature').isString().notEmpty().withMessage('Signature is required'),
     body('nonce').isInt({ min: 1 }).withMessage('Valid nonce is required'),
     body('deadline').isInt({ min: 1 }).withMessage('Valid deadline is required'),
-    validateEIP712Signature
+    validateEIP712Signature,
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -39,7 +42,7 @@ router.post('/deposit',
         res.status(400).json({
           success: false,
           error: 'Invalid input',
-          details: errors.array()
+          details: errors.array(),
         });
         return;
       }
@@ -50,20 +53,21 @@ router.post('/deposit',
       if (!user) {
         res.status(401).json({
           success: false,
-          error: 'User not authenticated'
+          error: 'User not authenticated',
         });
         return;
       }
 
-      const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
-      
+      const standardizedYieldService = req.app.locals.services
+        .standardizedYieldService as SYVaultService;
+
       const result = await standardizedYieldService.deposit({
         user,
         amount,
         signature,
         nonce,
         deadline,
-        senderRawTransaction
+        senderRawTransaction,
       });
 
       logger.info(`Vault deposit successful for ${user}: ${result.shares} shares`);
@@ -73,16 +77,15 @@ router.post('/deposit',
         data: {
           txHash: result.txHash,
           shares: result.shares,
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       });
       return;
-
     } catch (error) {
       logger.error('Vault deposit failed:', error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Deposit failed'
+        error: error instanceof Error ? error.message : 'Deposit failed',
       });
       return;
     }
@@ -93,13 +96,14 @@ router.post('/deposit',
  * POST /api/v1/defi/vault/withdraw
  * Withdraw from SY vault with user authorization
  */
-router.post('/withdraw',
+router.post(
+  '/withdraw',
   [
     body('shares').isString().notEmpty().withMessage('Shares amount is required'),
     body('signature').isString().notEmpty().withMessage('Signature is required'),
     body('nonce').isInt({ min: 1 }).withMessage('Valid nonce is required'),
     body('deadline').isInt({ min: 1 }).withMessage('Valid deadline is required'),
-    validateEIP712Signature
+    validateEIP712Signature,
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -108,7 +112,7 @@ router.post('/withdraw',
         res.status(400).json({
           success: false,
           error: 'Invalid input',
-          details: errors.array()
+          details: errors.array(),
         });
         return;
       }
@@ -119,20 +123,21 @@ router.post('/withdraw',
       if (!user) {
         res.status(401).json({
           success: false,
-          error: 'User not authenticated'
+          error: 'User not authenticated',
         });
         return;
       }
 
-      const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
-      
+      const standardizedYieldService = req.app.locals.services
+        .standardizedYieldService as SYVaultService;
+
       const result = await standardizedYieldService.withdraw({
         user,
         shares,
         signature,
         nonce,
         deadline,
-        senderRawTransaction
+        senderRawTransaction,
       });
 
       logger.info(`Vault withdrawal successful for ${user}: ${result.assets} assets`);
@@ -142,16 +147,15 @@ router.post('/withdraw',
         data: {
           txHash: result.txHash,
           assets: result.assets,
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       });
       return;
-
     } catch (error) {
       logger.error('Vault withdrawal failed:', error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Withdrawal failed'
+        error: error instanceof Error ? error.message : 'Withdrawal failed',
       });
       return;
     }
@@ -162,10 +166,9 @@ router.post('/withdraw',
  * GET /api/v1/defi/vault/balance/:address
  * Get user's SY vault balance
  */
-router.get('/balance/:address',
-  [
-    param('address').isEthereumAddress().withMessage('Valid Ethereum address required')
-  ],
+router.get(
+  '/balance/:address',
+  [param('address').isEthereumAddress().withMessage('Valid Ethereum address required')],
   async (req: Request, res: Response): Promise<void> => {
     try {
       const errors = validationResult(req);
@@ -173,7 +176,7 @@ router.get('/balance/:address',
         res.status(400).json({
           success: false,
           error: 'Invalid address format',
-          details: errors.array()
+          details: errors.array(),
         });
         return;
       }
@@ -183,9 +186,10 @@ router.get('/balance/:address',
         res.status(400).json({ success: false, error: 'Address is required' });
         return;
       }
-      
-      const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
-      
+
+      const standardizedYieldService = req.app.locals.services
+        .standardizedYieldService as SYVaultService;
+
       const balance = await standardizedYieldService.getBalance(address);
 
       res.json({
@@ -193,16 +197,15 @@ router.get('/balance/:address',
         data: {
           address,
           balance,
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       });
       return;
-
     } catch (error) {
       logger.error(`Failed to get balance for ${req.params.address}:`, error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch balance'
+        error: error instanceof Error ? error.message : 'Failed to fetch balance',
       });
       return;
     }
@@ -215,7 +218,8 @@ router.get('/balance/:address',
  */
 router.get('/apy', async (req: Request, res: Response): Promise<void> => {
   try {
-    const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
+    const standardizedYieldService = req.app.locals.services
+      .standardizedYieldService as SYVaultService;
     const vaultInfo = await standardizedYieldService.getVaultInfo();
 
     res.json({
@@ -224,16 +228,15 @@ router.get('/apy', async (req: Request, res: Response): Promise<void> => {
         apy: vaultInfo.apy,
         totalAssets: vaultInfo.totalAssets,
         totalSupply: vaultInfo.totalSupply,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     });
     return;
-
   } catch (error) {
     logger.error('Failed to get vault APY:', error);
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch APY'
+      error: error instanceof Error ? error.message : 'Failed to fetch APY',
     });
     return;
   }
@@ -245,7 +248,8 @@ router.get('/apy', async (req: Request, res: Response): Promise<void> => {
  */
 router.get('/strategies', async (req: Request, res: Response): Promise<void> => {
   try {
-    const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
+    const standardizedYieldService = req.app.locals.services
+      .standardizedYieldService as SYVaultService;
     const vaultInfo = await standardizedYieldService.getVaultInfo();
 
     res.json({
@@ -253,16 +257,15 @@ router.get('/strategies', async (req: Request, res: Response): Promise<void> => 
       data: {
         strategies: vaultInfo.strategies,
         totalStrategies: vaultInfo.strategies.length,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     });
     return;
-
   } catch (error) {
     logger.error('Failed to get vault strategies:', error);
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch strategies'
+      error: error instanceof Error ? error.message : 'Failed to fetch strategies',
     });
     return;
   }
@@ -272,14 +275,17 @@ router.get('/strategies', async (req: Request, res: Response): Promise<void> => 
  * POST /api/v1/defi/vault/deposit/preview
  * Preview deposit to SY vault (calculate expected shares)
  */
-router.post('/deposit/preview',
+router.post(
+  '/deposit/preview',
   [
-    body('amount').custom((value) => {
-      if (typeof value === 'string' && value.trim() !== '') return true;
-      if (typeof value === 'number' && value > 0) return true;
-      return false;
-    }).withMessage('Amount must be a positive number or non-empty string'),
-    body('userAddress').isEthereumAddress().withMessage('Valid user address required')
+    body('amount')
+      .custom((value) => {
+        if (typeof value === 'string' && value.trim() !== '') return true;
+        if (typeof value === 'number' && value > 0) return true;
+        return false;
+      })
+      .withMessage('Amount must be a positive number or non-empty string'),
+    body('userAddress').isEthereumAddress().withMessage('Valid user address required'),
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -288,83 +294,83 @@ router.post('/deposit/preview',
         res.status(400).json({
           success: false,
           error: 'Invalid input',
-          details: errors.array()
+          details: errors.array(),
         });
         return;
       }
 
       const { amount, userAddress } = req.body;
-      const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
-      
+      const standardizedYieldService = req.app.locals.services
+        .standardizedYieldService as SYVaultService;
+
       try {
         // Get vault info for calculations
         const vaultInfo = await standardizedYieldService.getVaultInfo();
-        
+
         // Calculate expected shares (1:1 for simplicity, or use actual contract previewDeposit)
         const amountBN = parseUnits(String(amount), 6); // USDT has 6 decimals
         const totalAssets = parseUnits(vaultInfo.totalAssets || '1000000', 6);
         const totalSupply = parseUnits(vaultInfo.totalSupply || '1000000', 18);
-        
+
         // Calculate share price and expected shares
-        const sharePrice = totalSupply > 0 ? (totalAssets * parseUnits('1', 18)) / totalSupply : parseUnits('1', 18);
+        const sharePrice =
+          totalSupply > 0 ? (totalAssets * parseUnits('1', 18)) / totalSupply : parseUnits('1', 18);
         const expectedShares = (amountBN * parseUnits('1', 18)) / sharePrice;
-        
+
         // Estimate gas (mock values)
         const gasEstimate = {
           gasLimit: '500000',
           gasPrice: '25000000000', // 25 gwei
-          estimatedCost: '0.0125' // ETH equivalent
+          estimatedCost: '0.0125', // ETH equivalent
         };
-        
+
         const preview = {
           deposit: {
             amount: amount,
-            asset: 'USDT'
+            asset: 'USDT',
           },
           expected: {
             shares: formatUnits(expectedShares, 18),
             sharePrice: formatUnits(sharePrice, 18),
             slippage: '0.1', // 0.1% estimated slippage
-            minimumShares: formatUnits(expectedShares * BigInt(999) / BigInt(1000), 18) // 0.1% slippage tolerance
+            minimumShares: formatUnits((expectedShares * BigInt(999)) / BigInt(1000), 18), // 0.1% slippage tolerance
           },
           fees: {
             platformFee: '0', // No platform fee for deposits
-            networkFee: gasEstimate.estimatedCost
+            networkFee: gasEstimate.estimatedCost,
           },
           gasEstimate,
           vaultInfo: {
             currentAPY: vaultInfo.apy,
             totalAssets: vaultInfo.totalAssets,
             utilizationRate: '95.0',
-            strategies: vaultInfo.strategies?.length || 3
+            strategies: vaultInfo.strategies?.length || 3,
           },
           risks: {
             level: 2,
-            factors: ['Strategy allocation risk', 'Smart contract risk', 'Market volatility']
+            factors: ['Strategy allocation risk', 'Smart contract risk', 'Market volatility'],
           },
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
 
         res.json({
           success: true,
-          data: preview
+          data: preview,
         });
         return;
-
       } catch (error) {
         logger.error('Failed to generate deposit preview:', error);
         res.status(500).json({
           success: false,
-          error: 'Failed to calculate deposit preview'
+          error: 'Failed to calculate deposit preview',
         });
         return;
       }
-
     } catch (error) {
       logger.error('Deposit preview failed:', error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Preview failed'
+        error: error instanceof Error ? error.message : 'Preview failed',
       });
       return;
     }
@@ -375,10 +381,11 @@ router.post('/deposit/preview',
  * POST /api/v1/defi/vault/withdraw/preview
  * Preview withdrawal from SY vault (calculate expected assets)
  */
-router.post('/withdraw/preview',
+router.post(
+  '/withdraw/preview',
   [
     body('shares').isString().notEmpty().withMessage('Shares amount is required'),
-    body('userAddress').isEthereumAddress().withMessage('Valid user address required')
+    body('userAddress').isEthereumAddress().withMessage('Valid user address required'),
   ],
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -387,94 +394,96 @@ router.post('/withdraw/preview',
         res.status(400).json({
           success: false,
           error: 'Invalid input',
-          details: errors.array()
+          details: errors.array(),
         });
         return;
       }
 
       const { shares, userAddress } = req.body;
-      const standardizedYieldService = req.app.locals.services.standardizedYieldService as SYVaultService;
-      
+      const standardizedYieldService = req.app.locals.services
+        .standardizedYieldService as SYVaultService;
+
       try {
         // Get vault info and user balance for calculations
         const vaultInfo = await standardizedYieldService.getVaultInfo();
         const userBalance = await standardizedYieldService.getBalance(userAddress);
-        
+
         // Calculate expected assets
         const sharesBN = parseUnits(shares, 18);
         const totalAssets = parseUnits(vaultInfo.totalAssets || '1000000', 6);
         const totalSupply = parseUnits(vaultInfo.totalSupply || '1000000', 18);
-        
+
         // Calculate expected assets
         const expectedAssets = totalSupply > 0 ? (sharesBN * totalAssets) / totalSupply : BigInt(0);
-        
+
         // Check if user has enough shares
         const userShares = parseUnits(userBalance.syShares || '0', 18);
         const canWithdraw = userShares >= sharesBN;
-        
+
         // Estimate gas
         const gasEstimate = {
           gasLimit: '400000',
           gasPrice: '25000000000',
-          estimatedCost: '0.01'
+          estimatedCost: '0.01',
         };
-        
+
         // Calculate withdrawal fee (0% for SY vault)
         const withdrawalFee = BigInt(0);
         const assetsAfterFee = expectedAssets - withdrawalFee;
-        
+
         const preview = {
           withdrawal: {
             shares: shares,
-            maxShares: formatUnits(userShares, 18)
+            maxShares: formatUnits(userShares, 18),
           },
           expected: {
             assets: formatUnits(expectedAssets, 6),
             assetsAfterFee: formatUnits(assetsAfterFee, 6),
             asset: 'USDT',
-            sharePrice: totalSupply > 0 ? formatUnits((totalAssets * parseUnits('1', 18)) / totalSupply, 18) : '1.0'
+            sharePrice:
+              totalSupply > 0
+                ? formatUnits((totalAssets * parseUnits('1', 18)) / totalSupply, 18)
+                : '1.0',
           },
           fees: {
             withdrawalFee: '0', // 0% withdrawal fee for SY vault
             withdrawalFeeAmount: '0',
-            networkFee: gasEstimate.estimatedCost
+            networkFee: gasEstimate.estimatedCost,
           },
           validation: {
             canWithdraw,
-            reason: canWithdraw ? null : 'Insufficient shares balance'
+            reason: canWithdraw ? null : 'Insufficient shares balance',
           },
           gasEstimate,
           taxImplications: {
             gainLoss: 'TBD', // Would calculate based on entry price
-            taxCategory: 'Capital gains (consult tax advisor)'
+            taxCategory: 'Capital gains (consult tax advisor)',
           },
           timing: {
             processingTime: '1-2 minutes',
-            cooldownPeriod: 'None'
+            cooldownPeriod: 'None',
           },
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
 
         res.json({
           success: true,
-          data: preview
+          data: preview,
         });
         return;
-
       } catch (error) {
         logger.error('Failed to generate withdrawal preview:', error);
         res.status(500).json({
           success: false,
-          error: 'Failed to calculate withdrawal preview'
+          error: 'Failed to calculate withdrawal preview',
         });
         return;
       }
-
     } catch (error) {
       logger.error('Withdrawal preview failed:', error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Preview failed'
+        error: error instanceof Error ? error.message : 'Preview failed',
       });
       return;
     }
