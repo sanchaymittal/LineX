@@ -7,7 +7,7 @@ import { Contract, formatUnits, verifyTypedData, Interface } from 'ethers';
 import { KaiaProviderManager } from '../blockchain/provider';
 import { FeeDelegationService } from '../blockchain/feeDelegationService';
 import { RedisService } from '../redis/redisService';
-import { getContractInstance, CONTRACT_ADDRESSES, SY_VAULT_ABI } from '../../constants/contractAbis';
+import { getContractInstance, CONTRACT_ADDRESSES } from '../../constants/contractAbis';
 import logger from '../../utils/logger';
 
 export interface SYDepositParams {
@@ -59,7 +59,7 @@ export class SYVaultService {
     this.kaiaProvider = kaiaProvider;
     this.feeDelegation = feeDelegation;
     this.redis = redis;
-    this.syVaultAddress = CONTRACT_ADDRESSES.SY_VAULT;
+    this.syVaultAddress = CONTRACT_ADDRESSES.STANDARDIZED_YIELD_VAULT;
   }
 
   /**
@@ -78,7 +78,9 @@ export class SYVaultService {
         throw new Error('senderRawTransaction is required for fee-delegated deposits');
       }
 
-      const result = await this.feeDelegation.executeFeeDelegatedTransaction(params.senderRawTransaction);
+      const result = await this.feeDelegation.executeFeeDelegatedTransaction(
+        params.senderRawTransaction
+      );
       if (!result.success) {
         throw new Error(result.error || 'Deposit transaction failed');
       }
@@ -92,10 +94,11 @@ export class SYVaultService {
 
       logger.info(`SY vault deposit completed. TxHash: ${txHash}, Shares: ${shares}`);
       return { txHash, shares };
-
     } catch (error) {
       logger.error('SY vault deposit failed:', error);
-      throw new Error(`Deposit failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Deposit failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -104,7 +107,9 @@ export class SYVaultService {
    */
   async withdraw(params: SYWithdrawParams): Promise<{ txHash: string; assets: string }> {
     try {
-      logger.info(`SY vault withdrawal initiated for user ${params.user}, shares: ${params.shares}`);
+      logger.info(
+        `SY vault withdrawal initiated for user ${params.user}, shares: ${params.shares}`
+      );
 
       // Verify EIP-712 signature for withdrawal authorization
       await this.verifyWithdrawSignature(params);
@@ -115,7 +120,9 @@ export class SYVaultService {
         throw new Error('senderRawTransaction is required for fee-delegated withdrawals');
       }
 
-      const result = await this.feeDelegation.executeFeeDelegatedTransaction(params.senderRawTransaction);
+      const result = await this.feeDelegation.executeFeeDelegatedTransaction(
+        params.senderRawTransaction
+      );
       if (!result.success) {
         throw new Error(result.error || 'Withdrawal transaction failed');
       }
@@ -129,10 +136,11 @@ export class SYVaultService {
 
       logger.info(`SY vault withdrawal completed. TxHash: ${txHash}, Assets: ${assets}`);
       return { txHash, assets };
-
     } catch (error) {
       logger.error('SY vault withdrawal failed:', error);
-      throw new Error(`Withdrawal failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Withdrawal failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -142,7 +150,10 @@ export class SYVaultService {
   async getBalance(userAddress: string): Promise<SYBalance> {
     try {
       const provider = await this.kaiaProvider.getProvider();
-      const syVaultContract = getContractInstance('SY_VAULT', provider as any) as any;
+      const syVaultContract = getContractInstance(
+        'STANDARDIZED_YIELD_VAULT',
+        provider as any
+      ) as any;
 
       const syShares = await syVaultContract.balanceOf(userAddress);
       const underlyingAssets = await syVaultContract.convertToAssets(syShares);
@@ -152,9 +163,8 @@ export class SYVaultService {
       return {
         syShares: syShares.toString(),
         underlyingAssets: underlyingAssets.toString(),
-        sharePrice: sharePrice.toString()
+        sharePrice: sharePrice.toString(),
       };
-
     } catch (error) {
       logger.error(`Failed to get SY balance for ${userAddress}:`, error);
       throw new Error('Failed to fetch balance');
@@ -173,37 +183,38 @@ export class SYVaultService {
       }
 
       const provider = await this.kaiaProvider.getProvider();
-      const syVaultContract = getContractInstance('SY_VAULT', provider as any) as any;
+      const syVaultContract = getContractInstance(
+        'STANDARDIZED_YIELD_VAULT',
+        provider as any
+      ) as any;
 
-      const [totalAssets, totalSupply, yieldRate] = await Promise.all([
+      const [totalAssets, totalSupply, apy] = await Promise.all([
         syVaultContract.totalAssets(),
         syVaultContract.totalSupply(),
-        syVaultContract.yieldRate()
+        syVaultContract.getAPY(),
       ]);
 
       // Get strategy information (mock for now since our contract doesn't have complex strategies)
       const strategies = [
-        { address: this.syVaultAddress, allocation: 100, apy: parseFloat((yieldRate * 100n / 10000n).toString()) }
+        { address: this.syVaultAddress, allocation: 100, apy: parseFloat(apy.toString()) / 100 },
       ];
 
       const vaultInfo: SYVaultInfo = {
         totalAssets: totalAssets.toString(),
         totalSupply: totalSupply.toString(),
-        apy: parseFloat((yieldRate * 100n / 10000n).toString()) / 100, // Convert basis points to percentage
-        strategies
+        apy: parseFloat(apy.toString()) / 100, // Convert basis points to percentage
+        strategies,
       };
 
       // Cache for 5 minutes
       await this.redis.setWithTTL('defi:sy:vault:info', JSON.stringify(vaultInfo), 300);
 
       return vaultInfo;
-
     } catch (error) {
       logger.error('Failed to get vault info:', error);
       throw new Error('Failed to fetch vault information');
     }
   }
-
 
   /**
    * Verify EIP-712 signature for deposit
@@ -213,7 +224,7 @@ export class SYVaultService {
       name: 'LineX',
       version: '1',
       chainId: parseInt(process.env.KAIA_CHAIN_ID || '1001'),
-      verifyingContract: this.syVaultAddress
+      verifyingContract: this.syVaultAddress,
     };
 
     const types = {
@@ -222,8 +233,8 @@ export class SYVaultService {
         { name: 'amount', type: 'uint256' },
         { name: 'vault', type: 'address' },
         { name: 'nonce', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' }
-      ]
+        { name: 'deadline', type: 'uint256' },
+      ],
     };
 
     const value = {
@@ -231,11 +242,11 @@ export class SYVaultService {
       amount: params.amount,
       vault: this.syVaultAddress,
       nonce: params.nonce,
-      deadline: params.deadline
+      deadline: params.deadline,
     };
 
     const recoveredAddress = verifyTypedData(domain, types, value, params.signature);
-    
+
     if (recoveredAddress.toLowerCase() !== params.user.toLowerCase()) {
       throw new Error('Invalid signature');
     }
@@ -254,7 +265,7 @@ export class SYVaultService {
       name: 'LineX',
       version: '1',
       chainId: parseInt(process.env.KAIA_CHAIN_ID || '1001'),
-      verifyingContract: this.syVaultAddress
+      verifyingContract: this.syVaultAddress,
     };
 
     const types = {
@@ -263,8 +274,8 @@ export class SYVaultService {
         { name: 'shares', type: 'uint256' },
         { name: 'vault', type: 'address' },
         { name: 'nonce', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' }
-      ]
+        { name: 'deadline', type: 'uint256' },
+      ],
     };
 
     const value = {
@@ -272,11 +283,11 @@ export class SYVaultService {
       shares: params.shares,
       vault: this.syVaultAddress,
       nonce: params.nonce,
-      deadline: params.deadline
+      deadline: params.deadline,
     };
 
     const recoveredAddress = verifyTypedData(domain, types, value, params.signature);
-    
+
     if (recoveredAddress.toLowerCase() !== params.user.toLowerCase()) {
       throw new Error('Invalid signature');
     }
@@ -294,10 +305,10 @@ export class SYVaultService {
     try {
       const provider = await this.kaiaProvider.getProvider();
       const receipt = await provider.getTransactionReceipt(txHash);
-      
+
       // Parse Deposit event from SY vault contract
       const syVaultInterface = new Interface([
-        'event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)'
+        'event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)',
       ]);
 
       for (const log of receipt.logs) {
@@ -327,10 +338,10 @@ export class SYVaultService {
     try {
       const provider = await this.kaiaProvider.getProvider();
       const receipt = await provider.getTransactionReceipt(txHash);
-      
+
       // Parse Withdraw event from SY vault contract
       const syVaultInterface = new Interface([
-        'event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)'
+        'event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)',
       ]);
 
       for (const log of receipt.logs) {
@@ -356,22 +367,28 @@ export class SYVaultService {
   /**
    * Update user position in Redis
    */
-  private async updateUserPosition(userAddress: string, amount: string, operation: 'deposit' | 'withdraw'): Promise<void> {
+  private async updateUserPosition(
+    userAddress: string,
+    amount: string,
+    operation: 'deposit' | 'withdraw'
+  ): Promise<void> {
     try {
       const key = `defi:positions:${userAddress}`;
       const existing = await this.redis.get(key);
-      const position = existing ? JSON.parse(existing as string) as any : {
-        syShares: '0',
-        pytBalance: '0',
-        nytBalance: '0',
-        portfolioTokens: '0',
-        lastUpdate: Date.now()
-      };
+      const position = existing
+        ? (JSON.parse(existing as string) as any)
+        : {
+            syShares: '0',
+            pytBalance: '0',
+            nytBalance: '0',
+            portfolioTokens: '0',
+            lastUpdate: Date.now(),
+          };
 
       // Update SY shares based on operation
       const currentShares = BigInt(position.syShares || '0');
       const changeAmount = BigInt(amount);
-      
+
       if (operation === 'deposit') {
         position.syShares = (currentShares + changeAmount).toString();
       } else {
@@ -382,7 +399,6 @@ export class SYVaultService {
 
       await this.redis.set(key, JSON.stringify(position));
       logger.info(`Updated position for ${userAddress}: ${operation} ${amount} SY shares`);
-
     } catch (error) {
       logger.error(`Failed to update user position for ${userAddress}:`, error);
       // Don't throw - position update failure shouldn't fail the main operation
