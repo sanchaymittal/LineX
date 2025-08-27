@@ -6,7 +6,7 @@ yarn-error.log*
 
 # Build outputs
 dist/
-api/
+# api/ - needed for Vercel deployment
 build/
 *.tsbuildinfo
 
